@@ -75,3 +75,13 @@ Online play is automatic on Windows and Linux. On a Mac, install playit from
 | Bedrock friends get "Unable to connect" online | Restart the server once after setting up online play (the app tells you when). Check they typed the port too. |
 | Friends on your Wi-Fi can't connect | Allow Java through Windows Firewall (search "Allow an app through Windows Firewall"). |
 | Download fails | Get Paper from <https://papermc.io/downloads/paper>, rename it `paper.jar`, put it in this folder; put Geyser + Floodgate (Spigot versions from <https://geysermc.org/download>) in `plugins`. |
+
+## Updates
+
+Everything keeps itself up to date:
+
+- **The app** checks for a new version every time it opens (and every few hours while it's open) and installs it by
+  itself. Turn this off in **Settings > This app**.
+- **The server software** (Minecraft server fixes, Bedrock support, Floodgate, console support) updates every time
+  the server starts, so Bedrock and Xbox friends can still join after their game updates. A brand-new Minecraft version
+  is only offered (Settings > Server software), because Java players have to update their game to match.

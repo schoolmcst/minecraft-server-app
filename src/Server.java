@@ -156,6 +156,20 @@ final class Server {
     }
 
     /** Downloads the newest server software while the server is off. */
+    /** Runs the automatic update check now (server off). */
+    void checkUpdatesNow(Runnable done) {
+        if (state != State.STOPPED && state != State.CRASHED) return;
+        setState(State.PREPARING, "Checking for updates");
+        Thread t = new Thread(() -> {
+            List<String> updated = Setup.autoUpdate(this::progress);
+            event(Kind.SYSTEM, updated.isEmpty() ? "Everything is up to date." : "Updated: " + String.join(", ", updated) + ".");
+            setState(State.STOPPED, "");
+            if (done != null) done.run();
+        }, "update-check");
+        t.setDaemon(true);
+        t.start();
+    }
+
     void updateSoftware(Runnable done) {
         if (state != State.STOPPED && state != State.CRASHED) return;
         setState(State.PREPARING, "Checking for updates");
@@ -191,6 +205,19 @@ final class Server {
                     return;
                 }
                 event(Kind.SYSTEM, "Downloaded the server for Minecraft " + Kit.mcVersion() + ".");
+            }
+
+            // 1b. keep it current (quick; skipped when offline)
+            else if (Kit.getBool("server.autoupdate", true)) {
+                progress("Checking for updates", -1);
+                List<String> updated = Setup.autoUpdate(this::progress);
+                if (!updated.isEmpty()) event(Kind.SYSTEM, "Updated: " + String.join(", ", updated) + ".");
+                String newer = Setup.newerMinecraft();
+                if (newer != null && !newer.equals(Kit.get("paper.newer.told", "")))  {
+                    Kit.set("paper.newer.told", newer);
+                    event(Kind.INFO, "Minecraft " + newer + " is out. When your Java friends have updated their game, "
+                            + "switch in Settings > Server software.");
+                }
             }
 
             // 2. Java version

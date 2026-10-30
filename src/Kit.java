@@ -14,7 +14,7 @@ final class Kit {
     private Kit() { }
 
     static final String APP_NAME = "Minecraft Server";
-    static final String VERSION = "3.1";
+    static final String VERSION = "3.2";
     static final String USER_AGENT =
             "home-minecraft-server-kit/" + VERSION + " (personal Paper+Geyser launcher; https://docs.papermc.io/misc/downloads-service/)";
 

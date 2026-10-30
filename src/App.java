@@ -73,7 +73,16 @@ final class App {
 
         JPanel main = new JPanel(new BorderLayout());
         main.setBackground(Ui.BG);
-        main.add(header(), BorderLayout.NORTH);
+        JPanel top = new JPanel(new BorderLayout());
+        top.setOpaque(false);
+        top.add(header(), BorderLayout.NORTH);
+        JPanel barWrap = new JPanel(new BorderLayout());
+        barWrap.setOpaque(false);
+        barWrap.setBorder(new EmptyBorder(0, 32, 10, 32));
+        barWrap.add(updateBar);
+        barWrap.setVisible(false);
+        top.add(barWrap, BorderLayout.SOUTH);
+        main.add(top, BorderLayout.NORTH);
         pageHolder.setOpaque(false);
         addPage("home", Ui.scroll(dashboard.root));
         addPage("players", Ui.scroll(players.root));
@@ -93,9 +102,95 @@ final class App {
         new Timer(1000, e -> { refreshHeader(); dashboard.tick(); }).start();
         frame.setVisible(true);
 
+        // app updates: say what's new after an update, then keep checking every few hours
+        String just = Kit.get("app.justUpdated", null);
+        if (just != null && Updater.compare(just, Kit.VERSION) == 0) {
+            Kit.set("app.justUpdated", null);
+            String notes = Kit.get("app.notes", "");
+            server.event(Server.Kind.SYSTEM, "The app updated itself to version " + Kit.VERSION
+                    + (notes.isBlank() ? "." : ": " + notes.replace("\n", "; ")));
+        }
+        Timer appTimer = new Timer(6 * 60 * 60 * 1000, e -> checkAppUpdate(false));
+        appTimer.setInitialDelay(90_000);
+        appTimer.start();
+
         server.event(Server.Kind.SYSTEM, Setup.softwareMissing()
                 ? "Welcome! Press Start server. The first start downloads the server (about 100 MB)."
                 : "Ready. Press Start server when you want to play.");
+    }
+
+    // ------------------------------------------------------------------ app updates
+
+    private final Ui.Card updateBar = new Ui.Card(new BorderLayout());
+    private volatile boolean appChecking;
+
+    void checkAppUpdate(boolean manual) {
+        if (appChecking || (!manual && !Kit.getBool("app.autoupdate", true))) return;
+        appChecking = true;
+        settings.appNote.setText("Checking...");
+        Thread t = new Thread(() -> {
+            String msg;
+            Updater.Release r = null;
+            try {
+                r = Updater.checkInBackground();
+                msg = r != null ? "Version " + r.version() + " downloaded. It installs the next time the app opens."
+                        : Files.exists(Updater.PENDING) ? "An update is downloaded and installs the next time the app opens."
+                        : "You have the latest version.";
+            } catch (Exception e) {
+                msg = "Couldn't check: " + Kit.describe(e);
+            }
+            appChecking = false;
+            String m2 = msg;
+            Updater.Release r2 = r;
+            ui(() -> {
+                settings.appNote.setText(m2);
+                if (r2 != null || Files.exists(Updater.PENDING)) showUpdateBar(r2);
+            });
+        }, "app-update");
+        t.setDaemon(true);
+        t.start();
+    }
+
+    private void showUpdateBar(Updater.Release r) {
+        updateBar.removeAll();
+        updateBar.bg = Ui.BLUE_DIM;
+        updateBar.arc = 12;
+        updateBar.setBorder(new EmptyBorder(10, 16, 10, 12));
+        String v = r != null ? r.version() : ServerLauncher.jarVersion(Updater.PENDING);
+        String notes = r != null && !r.notes().isEmpty() ? "  " + String.join("; ", r.notes()) : "";
+        JLabel l = Ui.label("App update " + (v == null ? "" : v + " ") + "is ready." + shorten(notes, 90), Ui.font(13.5f), Ui.TEXT);
+        Ui.Btn later = new Ui.Btn("Later", Ui.Kind.SUBTLE).small().onClick(() -> updateBar.getParent().setVisible(false));
+        Ui.Btn now = new Ui.Btn("Restart app to update", Ui.Kind.PRIMARY).small().onClick(this::restartForUpdate);
+        updateBar.add(Ui.row(10, l, Ui.glue(), later, now), BorderLayout.CENTER);
+        updateBar.getParent().setVisible(true);
+        updateBar.getParent().revalidate();
+        updateBar.revalidate();
+        updateBar.repaint();
+    }
+
+    private void restartForUpdate() {
+        boolean running = server.state() != Server.State.STOPPED && server.state() != Server.State.CRASHED;
+        if (running && !Dialogs.confirm(frame, "Restart the app now?",
+                "The server stops while the app restarts (your world is saved), then you can start it again. "
+                        + "Or choose Cancel and the update installs next time you open the app.", "Stop and restart", Ui.Kind.PRIMARY))
+            return;
+        JDialog wait = Dialogs.busy(frame, "Restarting the app...");
+        Thread t = new Thread(() -> {
+            if (running) server.stopAndWait(120_000);
+            online.stopAgent();
+            releaseLockForRestart();
+            Updater.restartApp();
+            ui(() -> { wait.dispose(); server.killNow(); frame.dispose(); System.exit(0); });
+        }, "restart");
+        t.setDaemon(true);
+        t.start();
+        wait.setVisible(true);
+    }
+
+    /** The new copy of the app must be able to take the "already open" lock. */
+    private static void releaseLockForRestart() {
+        try { Files.deleteIfExists(Kit.DIR.resolve(".app.restarting")); Files.createFile(Kit.DIR.resolve(".app.restarting")); }
+        catch (Exception ignored) { }
     }
 
     private void close() {
@@ -1283,6 +1378,11 @@ final class App {
         private final Ui.Choice ram;
         private final JLabel software = Ui.label("", Ui.font(14), Ui.TEXT);
         private final Ui.Btn update = new Ui.Btn("Check for updates", Ui.Kind.SECONDARY);
+        private final Ui.Btn jump = new Ui.Btn("Switch to new Minecraft", Ui.Kind.PRIMARY);
+        private final Ui.Switch autoServer = new Ui.Switch(Kit.getBool("server.autoupdate", true));
+        private final Ui.Switch autoApp = new Ui.Switch(Kit.getBool("app.autoupdate", true));
+        private final Ui.Btn appCheck = new Ui.Btn("Check for app update", Ui.Kind.SECONDARY);
+        final JLabel appNote = Ui.label("", Ui.font(12.5f), Ui.FAINT);
         private final JLabel updateNote = Ui.label("", Ui.font(12.5f), Ui.FAINT);
         private final Ui.Choice backupChoice = new Ui.Choice(List.of(""), "");
         private final JPanel backupHolder = new JPanel(new BorderLayout()) {
@@ -1348,14 +1448,40 @@ final class App {
             back.add(bs);
 
             Ui.Card soft = new Ui.Card();
-            update.addActionListener(e -> server.updateSoftware(() -> ui(this::refresh)));
+            update.setText("Check now");
+            update.addActionListener(e -> server.checkUpdatesNow(() -> ui(this::refresh)));
+            jump.addActionListener(e -> {
+                String v = Setup.newerMinecraft();
+                if (v == null || !Dialogs.confirm(frame, "Switch to Minecraft " + v + "?",
+                        "Java players will need Minecraft " + v + " to join after this (Bedrock and Xbox players aren't affected). "
+                                + "Your world is backed up first and upgraded; it can't go back to the old version.",
+                        "Switch to " + v, Ui.Kind.PRIMARY)) return;
+                try { Setup.backupWorlds("before-" + v); } catch (Exception ignored) { }
+                server.updateSoftware(() -> ui(this::refresh));
+            });
+            autoServer.onChange(on -> Kit.set("server.autoupdate", on));
             Ui.Stack ss = new Ui.Stack(12);
             ss.put(Ui.cardTitle("Server software"));
             ss.put(software);
-            ss.put(Ui.row(12, update, updateNote, Ui.glue()));
-            ss.put(Ui.para("Update when Minecraft releases a new version, or when Bedrock friends suddenly can't connect "
-                    + "(Bedrock updates often need a newer Geyser). Your world is kept.", Ui.font(13), Ui.FAINT));
+            ss.put(Ui.row(12, autoServer, Ui.label("Update automatically every time the server starts", Ui.font(14), Ui.TEXT), Ui.glue()));
+            ss.put(Ui.para("Keeps the Minecraft server, Bedrock support, Floodgate and console support current, so Bedrock "
+                    + "and Xbox friends can still join after their game updates. New Minecraft versions wait for you, "
+                    + "because Java players have to update their game to match.", Ui.font(13), Ui.FAINT));
+            ss.put(Ui.row(12, update, jump, updateNote, Ui.glue()));
             soft.add(ss);
+
+            Ui.Card appCard = new Ui.Card();
+            autoApp.onChange(on -> Kit.set("app.autoupdate", on));
+            appCheck.addActionListener(e -> checkAppUpdate(true));
+            Ui.Stack as2 = new Ui.Stack(12);
+            as2.put(Ui.cardTitle("This app"));
+            as2.put(Ui.label("Version " + Kit.VERSION, Ui.font(14), Ui.TEXT));
+            as2.put(Ui.row(12, autoApp, Ui.label("Update the app automatically", Ui.font(14), Ui.TEXT), Ui.glue()));
+            as2.put(Ui.para("New versions are published to github.com/schoolmcst/minecraft-server-app. The app checks when it "
+                    + "opens and every few hours; an update found while it's open installs the next time you open it.",
+                    Ui.font(13), Ui.FAINT));
+            as2.put(Ui.row(12, appCheck, appNote, Ui.glue()));
+            appCard.add(as2);
 
             Ui.Card files = new Ui.Card();
             Ui.Stack fs = new Ui.Stack(12);
@@ -1376,6 +1502,7 @@ final class App {
             page.put(perf);
             page.put(back);
             page.put(soft);
+            page.put(appCard);
             page.put(files);
             root.add(page, BorderLayout.NORTH);
             refresh();
@@ -1415,6 +1542,10 @@ final class App {
                     : "Minecraft " + v + "   ·   Paper" + (build != null ? " build " + build : "") + "   ·   Geyser + Floodgate");
             boolean off = server.state() == Server.State.STOPPED || server.state() == Server.State.CRASHED;
             update.setEnabled(off);
+            String newer = Setup.newerMinecraft();
+            jump.setVisible(newer != null);
+            if (newer != null) jump.setText("Switch to Minecraft " + newer);
+            jump.setEnabled(off);
             updateNote.setText(off ? "" : server.state() == Server.State.PREPARING ? server.detail() : "Stop the server first.");
             restore.setEnabled(off && !backups.isEmpty());
             backupNow.setEnabled(server.state() != Server.State.PREPARING && server.state() != Server.State.STOPPING);

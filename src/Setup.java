@@ -60,6 +60,7 @@ final class Setup {
             Files.move(tmp, Kit.PAPER_JAR, StandardCopyOption.REPLACE_EXISTING);
             Files.writeString(Kit.VERSION_FILE, v + System.lineSeparator());
             Kit.set("paper.build", Kit.Json.get(build, "id"));
+            Kit.set("paper.newer", null);
             return;
         }
         throw new IOException("No stable Paper server build is available right now");
@@ -84,6 +85,121 @@ final class Setup {
         Path target = Kit.PLUGINS.resolve(fileName);
         Path tmp = Kit.download(GEYSER + "/" + project + "/versions/latest/builds/latest/downloads/spigot", target, label, p);
         Files.move(tmp, target, StandardCopyOption.REPLACE_EXISTING);
+        Kit.set(project + ".sha", Kit.sha256(target));
+    }
+
+    // ------------------------------------------------------------------ automatic updates
+
+    static final String XBOX_RELEASES = System.getProperty("kit.xboxdl", "https://github.com/MCXboxBroadcast/Broadcaster/releases");
+    static final Path XBOX_JAR = Kit.PLUGINS.resolve("Geyser-Spigot").resolve("extensions").resolve("MCXboxBroadcastExtension.jar");
+
+    /**
+     * Keeps the server software current. Called before each start. Paper only gets new builds of the Minecraft
+     * version you're on (a new Minecraft version means Java players must update too, so that's a choice: see
+     * newerMinecraft()). Returns what changed, for the activity feed. Never throws: offline just means no update.
+     */
+    static List<String> autoUpdate(Kit.Progress p) {
+        List<String> done = new ArrayList<>();
+        try {
+            if (updatePaperBuild(p)) done.add("Minecraft server (Paper build " + Kit.get("paper.build", "?") + ")");
+        } catch (Exception ignored) { }
+        try {
+            if (updateGeyserProject("geyser", "Geyser-Spigot.jar", "Bedrock support", p)) done.add("Bedrock support (Geyser)");
+        } catch (Exception ignored) { }
+        try {
+            if (updateGeyserProject("floodgate", "floodgate-spigot.jar", "Floodgate", p)) done.add("Floodgate");
+        } catch (Exception ignored) { }
+        try {
+            if (Files.exists(XBOX_JAR) && updateXbox(p)) done.add("console support (MCXboxBroadcast " + Kit.get("xbox.tag", "") + ")");
+        } catch (Exception ignored) { }
+        try { checkNewerMinecraft(); } catch (Exception ignored) { }
+        Kit.set("server.lastUpdateCheck", System.currentTimeMillis());
+        return done;
+    }
+
+    /** Newest stable Paper build of the Minecraft version already installed. */
+    static boolean updatePaperBuild(Kit.Progress p) throws IOException, InterruptedException {
+        String v = Kit.mcVersion();
+        if (v.isEmpty() || !Files.exists(Kit.PAPER_JAR)) return false;
+        Map<?, ?> build = latestStable(Kit.Json.parse(Kit.getString(FILL + "/versions/" + v + "/builds")));
+        if (build == null) return false;
+        long id = build.get("id") instanceof Number n ? n.longValue() : -1;
+        long have = parseLong(Kit.get("paper.build", "-1"));
+        Object dl = Kit.Json.get(build, "downloads", "server:default");
+        String sha = Kit.Json.str(dl, "checksums", "sha256");
+        if (have >= id) return false;
+        if (have < 0 && sha != null && sha.equalsIgnoreCase(Kit.sha256(Kit.PAPER_JAR))) { Kit.set("paper.build", id); return false; }
+        Path tmp = Kit.download(Kit.Json.str(dl, "url"), Kit.PAPER_JAR, "Updating the Minecraft server", p);
+        if (sha != null && !sha.equalsIgnoreCase(Kit.sha256(tmp))) { Files.deleteIfExists(tmp); return false; }
+        Files.move(tmp, Kit.PAPER_JAR, StandardCopyOption.REPLACE_EXISTING);
+        Kit.set("paper.build", id);
+        return true;
+    }
+
+    /** Remembers whether a newer Minecraft version (with a stable Paper build) exists. */
+    static void checkNewerMinecraft() throws IOException, InterruptedException {
+        String cur = Kit.mcVersion();
+        if (cur.isEmpty()) return;
+        Object project = Kit.Json.parse(Kit.getString(FILL));
+        List<String> versions = new ArrayList<>();
+        if (Kit.Json.get(project, "versions") instanceof Map<?, ?> m)
+            for (Object list : m.values()) if (list instanceof List<?> l) for (Object v : l) versions.add(String.valueOf(v));
+        String newer = null;
+        int tried = 0;
+        for (String v : versions) {
+            if (Updater.compare(v, cur) <= 0 || v.contains("pre") || v.contains("rc") || v.contains("snapshot")) continue;
+            if (++tried > 4) break;
+            if (latestStable(Kit.Json.parse(Kit.getString(FILL + "/versions/" + v + "/builds"))) != null) { newer = v; break; }
+        }
+        Kit.set("paper.newer", newer);
+    }
+
+    static String newerMinecraft() { return Kit.get("paper.newer", null); }
+
+    /** Geyser/Floodgate: download only when the published build differs from the file we have. */
+    static boolean updateGeyserProject(String project, String fileName, String label, Kit.Progress p)
+            throws IOException, InterruptedException {
+        Path target = Kit.PLUGINS.resolve(fileName);
+        if (!Files.exists(target)) return false;
+        Object info = Kit.Json.parse(Kit.getString(GEYSER + "/" + project + "/versions/latest/builds/latest"));
+        String sha = Kit.Json.str(info, "downloads", "spigot", "sha256");
+        String build = Kit.Json.str(info, "build");
+        String key = project + ".sha";
+        String have = Kit.get(key, null);
+        if (have == null) { have = Kit.sha256(target); Kit.set(key, have); }
+        if (sha == null || sha.equalsIgnoreCase(have)) return false;
+        Path tmp = Kit.download(GEYSER + "/" + project + "/versions/latest/builds/latest/downloads/spigot", target,
+                "Updating " + label, p);
+        String got = Kit.sha256(tmp);
+        if (!got.equalsIgnoreCase(sha)) { Files.deleteIfExists(tmp); return false; }
+        Files.move(tmp, target, StandardCopyOption.REPLACE_EXISTING);
+        Kit.set(key, got);
+        if (build != null) Kit.set(project + ".build", build);
+        return true;
+    }
+
+    /** MCXboxBroadcast: GitHub's "latest release" link redirects to the release tag. */
+    static boolean updateXbox(Kit.Progress p) throws IOException, InterruptedException {
+        java.net.http.HttpClient noRedirect = java.net.http.HttpClient.newBuilder()
+                .followRedirects(java.net.http.HttpClient.Redirect.NEVER)
+                .connectTimeout(java.time.Duration.ofSeconds(15)).build();
+        var r = noRedirect.send(Kit.request(XBOX_RELEASES + "/latest").build(), java.net.http.HttpResponse.BodyHandlers.discarding());
+        String loc = r.headers().firstValue("location").orElse("");
+        int i = loc.lastIndexOf("/tag/");
+        if (i < 0) return false;
+        String tag = loc.substring(i + 5);
+        String have = Kit.get("xbox.tag", null);
+        if (have == null) { Kit.set("xbox.tag", tag); return false; } // the jar we have came from the current release
+        if (have.equals(tag)) return false;
+        Path tmp = Kit.download(XBOX_RELEASES + "/download/" + tag + "/MCXboxBroadcastExtension.jar", XBOX_JAR,
+                "Updating console support", p);
+        Files.move(tmp, XBOX_JAR, StandardCopyOption.REPLACE_EXISTING);
+        Kit.set("xbox.tag", tag);
+        return true;
+    }
+
+    private static long parseLong(String s) {
+        try { return Long.parseLong(s.trim()); } catch (Exception e) { return -1; }
     }
 
     static int requiredJava(String mcVersion) {

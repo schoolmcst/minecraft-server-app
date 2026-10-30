@@ -1,14 +1,21 @@
-// Minecraft Server app: Paper (Java Edition) + Geyser/Floodgate (Bedrock crossplay) + playit.gg (online play).
+// Minecraft Server app: Paper (Java Edition) + Geyser/Floodgate (Bedrock crossplay) + playit.gg (online play)
+// + MCXboxBroadcast (console players).
 //
-// This folder is the source code of launcher.jar, included so you can see exactly what it does.
-// You never need to touch it. Downloads come only from the official sources:
-//   fill.papermc.io (server), download.geysermc.org (Bedrock support),
-//   github.com/playit-cloud (playit program) and api.playit.gg (online play).
+// This folder is the source code of the app, included so you can see exactly what it does.
+// You never need to touch it. Downloads come only from official sources:
+//   fill.papermc.io (server), download.geysermc.org (Bedrock support), github.com (playit, MCXboxBroadcast,
+//   and this app's own updates from github.com/schoolmcst/minecraft-server-app) and api.playit.gg (online play).
+//
+// How app updates work: launcher.jar is a small starter. Each time it opens it checks the update repo; a newer app
+// is downloaded (and checked against its SHA-256) into app/app.jar, and the starter runs whichever is newest.
 
 import java.io.IOException;
+import java.net.URL;
+import java.net.URLClassLoader;
 import java.nio.channels.FileChannel;
 import java.nio.channels.FileLock;
 import java.nio.file.*;
+import java.util.jar.JarFile;
 import javax.swing.*;
 
 public class ServerLauncher {
@@ -25,9 +32,41 @@ public class ServerLauncher {
             System.exit(1);
         }
 
-        Kit.loadSettings();
-        boolean alreadyOpen = !acquireLock();
+        if (!"1".equals(System.getProperty("kit.inner"))) {
+            boolean alreadyOpen = !acquireLockWaitingForRestart();
+            if (!alreadyOpen && startNewerApp(args)) return;
+            run(args, alreadyOpen);
+            return;
+        }
+        run(args, !acquireLock());
+    }
 
+    /** Applies a downloaded update, checks for a new one, and runs app/app.jar if it is newer than this starter. */
+    private static boolean startNewerApp(String[] args) {
+        Kit.loadSettings();
+        Updater.applyPending();
+        if (Kit.getBool("app.autoupdate", true) && !Boolean.getBoolean("kit.noupdate")) Updater.checkAtLaunch();
+
+        String installed = Updater.installedVersion();
+        if (installed == null || Updater.compare(installed, Kit.VERSION) <= 0) return false;
+        try {
+            URLClassLoader loader = new URLClassLoader(new URL[]{Updater.APP_JAR.toUri().toURL()},
+                    ClassLoader.getPlatformClassLoader());
+            System.setProperty("kit.inner", "1");
+            Thread.currentThread().setContextClassLoader(loader);
+            loader.loadClass("ServerLauncher").getMethod("main", String[].class).invoke(null, (Object) args);
+            return true;
+        } catch (Throwable t) {
+            // a broken download must never stop the server from opening: fall back to this version
+            System.clearProperty("kit.inner");
+            Kit.set("app.lastError", "Couldn't start app " + installed + ": " + t);
+            try { Files.deleteIfExists(Updater.APP_JAR); } catch (IOException ignored) { }
+            return false;
+        }
+    }
+
+    private static void run(String[] args, boolean alreadyOpen) {
+        Kit.loadSettings();
         SwingUtilities.invokeLater(() -> {
             Ui.install();
             if (alreadyOpen) {
@@ -40,14 +79,40 @@ public class ServerLauncher {
         });
     }
 
+    /** After "Restart app to update", the old copy may need a few seconds to close. */
+    private static boolean acquireLockWaitingForRestart() {
+        Path marker = Kit.DIR.resolve(".app.restarting");
+        boolean restarting = Files.exists(marker);
+        for (int i = 0; ; i++) {
+            if (acquireLock()) {
+                try { Files.deleteIfExists(marker); } catch (IOException ignored) { }
+                return true;
+            }
+            if (!restarting || i >= 60) return false;
+            try { Thread.sleep(500); } catch (InterruptedException e) { return false; }
+        }
+    }
+
     private static boolean acquireLock() {
         try {
             Path f = Kit.DIR.resolve(".app.lock");
             FileChannel ch = FileChannel.open(f, StandardOpenOption.CREATE, StandardOpenOption.WRITE);
             lock = ch.tryLock();
+            if (lock == null) ch.close();
             return lock != null;
-        } catch (IOException | java.nio.channels.OverlappingFileLockException e) {
+        } catch (java.nio.channels.OverlappingFileLockException e) {
+            return true; // already held by the starter in this same process
+        } catch (IOException e) {
             return true; // if locking isn't possible, don't block the app
+        }
+    }
+
+    /** Reads the app version stored in a jar's manifest. */
+    static String jarVersion(Path jar) {
+        try (JarFile j = new JarFile(jar.toFile())) {
+            return j.getManifest() == null ? null : j.getManifest().getMainAttributes().getValue("Implementation-Version");
+        } catch (IOException e) {
+            return null;
         }
     }
 }
