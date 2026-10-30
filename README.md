@@ -1,111 +1,77 @@
-# Your Minecraft Server
+# Minecraft Server app
 
-A survival server that runs on your own computer. Java Edition **and** Bedrock Edition players
-(phones, tablets, Windows Bedrock) can play together in the same world.
+A survival server that runs on your own computer, in a proper app window. Java Edition and
+Bedrock Edition players (phones, tablets, Windows) play together in the same world, and with
+one-time setup your friends can join from anywhere.
 
-It runs **Paper** (a faster drop-in replacement for the official server — gameplay stays vanilla)
-plus **Geyser** and **Floodgate**, which let Bedrock players join without owning Java Edition.
+Under the hood: **Paper** (a faster drop-in for the official server; gameplay stays vanilla),
+**Geyser + Floodgate** (Bedrock support), and **playit.gg** (free online play, no router settings).
 
 ---
 
-## 1. Start the server
+## Start it
 
 Put this folder somewhere permanent (e.g. Documents), then:
 
-- **Windows:** double-click **`Start Server.bat`**
-- **Mac:** right-click **`start-server.command`** → **Open** → **Open** (only needed the first time,
-  because macOS doesn't know the file yet). After that you can double-click it.
-- **Linux:** run `./start-server.command` in a terminal.
+- **Windows:** double-click **`Start Server.bat`**. The first time, a black window downloads Java for
+  the app (about 50 MB, once). After that the app opens directly. In the app, use
+  **Settings > Add desktop shortcut** for a one-click icon.
+- **Mac:** right-click **`start-server.command`** > **Open** > **Open** the first time, then double-click.
+- **Linux:** run `./start-server.command`.
 
-That's it — no separate Java install. The first start sets everything up by itself (about 150 MB:
-its own copy of Java in the `runtime` folder, plus the server), asks you to accept the
-[Minecraft EULA](https://aka.ms/MinecraftEULA) — type `yes` — and builds the world.
-When the window says **SERVER IS ONLINE**, you're ready.
+In the app, click **Start server**. The first start downloads the server (about 100 MB) and asks
+you to accept Minecraft's EULA. **Windows:** if a firewall pop-up for Java appears, tick
+**Private networks** and click **Allow**.
 
-**Windows:** a firewall pop-up for Java will appear. Tick **Private networks** and click **Allow**.
+## The app
 
-### The server window
-
-Instead of the raw server log, the window shows a short "how to join" panel, then one line per event:
-players joining and leaving, chat, deaths, replies to your commands, and real problems
-(lag, someone who isn't on the whitelist, errors). Everything else still goes to `logs\latest.log`.
-To see the full raw log in the window instead, start it with `--full-log`
-(e.g. make a shortcut to `Start Server.bat --full-log`).
-
-## 2. Make yourself admin and add your friends
-
-Type these in the server window (no `/`), replacing the names:
-
-| What | Command |
+| Page | What it's for |
 |---|---|
-| Make yourself admin | `op YourJavaName` |
-| Let a **Java** friend in | `whitelist add TheirJavaName` |
-| Let a **Bedrock** friend in | `fwhitelist add TheirXboxGamertag` |
-| Remove someone | `whitelist remove Name` |
-| Shut down safely | `stop` |
+| **Dashboard** | Status, who's online, the addresses friends type in (with Copy buttons), recent activity. |
+| **Players** | Add people to the whitelist (Java name or Bedrock/Xbox gamertag), make admins, kick, remove. If someone not on the list tries to join, a one-click **Add** appears. |
+| **Console** | A tidy feed of what's happening, a command box, and quick buttons (make it day, clear weather...). Flip **Full server log** for the raw log. |
+| **Play online** | Lets friends join from anywhere. See below. |
+| **Settings** | Server name, game mode, difficulty, max players, PvP, whitelist, memory, backups (restore too), updates, desktop shortcut. |
 
-The whitelist is **on**, so only people you add can join. That matters because the server runs on
-your computer. Bedrock players show up in-game with a `.` in front of their name — that's normal.
+Closing the window while the server runs asks first, then saves the world and shuts down cleanly.
 
-## 3. Joining
+## Playing with friends over the internet
 
-The server window shows the right addresses every time it starts.
+Open **Play online** and click **Set up online play**:
 
-| Who | Java Edition | Bedrock Edition |
-|---|---|---|
-| You, on this computer | Multiplayer → Add Server → `localhost` | Servers → Add Server → `127.0.0.1`, port `19132` |
-| Friends on your Wi-Fi | your computer's local IP (shown in the window, e.g. `192.168.1.23`) | same IP, port `19132` |
-| Friends anywhere else | see section 4 | see section 4 |
+1. Your browser opens playit.gg. Create a free account (or log in) and approve this PC.
+2. The app creates two addresses, one for Java and one for Bedrock (with a port).
+3. Share them. They stay the same, and go live whenever the server is running
+   (the header shows **Online + internet**).
 
-## 4. Playing with friends over the internet
+The playit program runs quietly in the background only while your server is on. Turn off
+"Go online automatically" on that page to keep the server Wi-Fi only.
+If playit ever refuses to make an address automatically, the page shows a short manual step.
 
-Pick **one** of these.
+Online play is automatic on Windows and Linux. On a Mac, install playit from
+<https://playit.gg/download> and add a "Minecraft Java" tunnel (port 25565) and a
+"Minecraft Bedrock" tunnel (port 19132).
 
-### Option A — playit.gg (easiest, free, no router settings)
+## Good to know
 
-1. Download the playit program from <https://playit.gg> and run it. Sign in when it asks.
-2. On the playit website, add a tunnel: type **Minecraft Java**, local port `25565`.
-3. Add a second tunnel: type **Minecraft Bedrock**, local IP `127.0.0.1`, local port `19132`,
-   Proxy Protocol **None**.
-4. Give friends the addresses playit shows:
-   - Java friends: the Java tunnel address (e.g. `something.joinmc.link`)
-   - Bedrock friends: the Bedrock tunnel address **and its port** (e.g. `something.ply.gg`, port `6695`)
-5. Stop the server, open `plugins/Geyser-Spigot/config.yml`, set `broadcast-port` to the Bedrock
-   tunnel's port (e.g. `6695`), save, and start the server again.
-
-Keep the playit program running while you play — closing it closes the tunnels.
-
-### Option B — port forwarding on your router
-
-In your router's settings, forward these to your computer's local IP:
-- **TCP 25565** (Java)
-- **UDP 19132** (Bedrock)
-
-Friends then join with your public IP (search "what is my IP"). Your public IP can change,
-and this exposes your computer directly, so Option A is usually the better choice.
-
-## Everyday stuff
-
-- **Backups:** every start saves a copy of the world to `backups/` (the newest 5 are kept). To restore
-  one: stop the server, delete the world folders, and unzip the backup into this folder.
-- **Updating:** when a new Minecraft version comes out, copy this whole folder somewhere safe, then
-  run **`Update Server.bat`** (Mac/Linux: `./start-server.command --update`). Bedrock players
-  usually need the latest Geyser, so update when they say they can't connect after a Bedrock update.
-- **Memory:** the server uses 4 GB. If your computer has only 8 GB, open the start script in a text
-  editor and change `RAM=4G` to `RAM=3G`.
-- **Settings:** `server.properties` holds difficulty, game mode, the welcome message (`motd`),
-  view distance and more. Stop the server before editing it.
-- **Your computer must be on** with the server window open for anyone to play.
+- **Whitelist:** only people you add can join. That matters because the server runs on your computer.
+- **Backups:** every start backs up the world (the newest 5 are kept). Restore from Settings > Backups;
+  your current world is backed up first.
+- **Updating:** Settings > Check for updates (server stopped). Bedrock players usually need the latest
+  Geyser, so update when they suddenly can't connect.
+- **Consoles** (Xbox, PlayStation, Switch) can't type in server addresses. See
+  <https://geysermc.org/wiki/geyser/using-geyser-with-consoles/>.
+- **Your PC must be on** with the app open for anyone to play.
+- The `src` folder is the app's source code, included so you can see what it does. You never need it.
 
 ## Troubleshooting
 
 | Problem | Fix |
 |---|---|
-| "Couldn't set up Java automatically" | Check your internet and start again. If it keeps failing, see the manual steps it prints. |
-| Window closes or shows "stopped unexpectedly" | It lists the last messages; the full story is in `logs\latest.log`. |
-| "You are not whitelisted" | Add them with `whitelist add` (Java) or `fwhitelist add` (Bedrock). |
-| Bedrock friends are asked to sign in to a Java account | In `plugins/Geyser-Spigot/config.yml` set `auth-type: floodgate`, then restart. |
-| Bedrock says "Unable to connect to world" | Check the port is `19132` (or the playit port), and allow Java through the firewall. |
-| Friends on Wi-Fi can't connect | Allow Java through Windows Firewall (search "Allow an app through Windows Firewall"). |
-| Xbox / PlayStation / Switch players | Consoles can't type in server addresses. See <https://geysermc.org/wiki/geyser/using-geyser-with-consoles/> |
-| Download fails | Get Paper from <https://papermc.io/downloads/paper>, rename it `paper.jar`, put it in this folder; put Geyser + Floodgate (Spigot versions from <https://geysermc.org/download>) in `plugins/`. |
+| "Couldn't set up Java automatically" | Check your internet and run `Start Server.bat` again, or follow the manual steps it prints. |
+| "Already open" | The app is already running; check your taskbar. |
+| Server says it stopped unexpectedly | Console shows the last messages; Settings > Open full log has everything. |
+| "The server's port is already in use" | Another Minecraft server is running on this PC. Close it first. |
+| Bedrock friends get "Unable to connect" online | Restart the server once after setting up online play (the app tells you when). Check they typed the port too. |
+| Friends on your Wi-Fi can't connect | Allow Java through Windows Firewall (search "Allow an app through Windows Firewall"). |
+| Download fails | Get Paper from <https://papermc.io/downloads/paper>, rename it `paper.jar`, put it in this folder; put Geyser + Floodgate (Spigot versions from <https://geysermc.org/download>) in `plugins`. |
