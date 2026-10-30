@@ -527,7 +527,7 @@ final class App {
             stats.setOpaque(false);
             stats.add(stat("Server", statusBig, statusSmall));
             stats.add(stat("Players online", playersBig, playersSmall));
-            stats.add(stat("Version", versionBig, versionSmall));
+            stats.add(stat("Minecraft version", versionBig, versionSmall));
 
             welcome.bg = Ui.GREEN_DIM;
             JTextArea wt = Ui.para("Press Start server to begin. The first start downloads the server software "
@@ -543,6 +543,9 @@ final class App {
 
             Ui.Card join = new Ui.Card();
             joinRows.setOpaque(false);
+            join.addComponentListener(new java.awt.event.ComponentAdapter() {
+                @Override public void componentResized(java.awt.event.ComponentEvent e) { rebuildJoin(); }
+            });
             Ui.Stack js = new Ui.Stack(12);
             js.put(Ui.row(0, Ui.cardTitle("How friends join"), Ui.glue(),
                     Ui.label("Java: Multiplayer > Add Server.   Bedrock: Servers > Add Server.", Ui.font(12), Ui.FAINT)));
@@ -599,19 +602,26 @@ final class App {
                     : server.online.isEmpty() ? "Nobody yet"
                     : shorten(String.join(", ", server.online.stream().map(n -> n.startsWith(".") ? n.substring(1) : n).toList()), 40));
             String v = Kit.mcVersion();
-            versionBig.setText(v.isEmpty() ? "Not installed" : "Minecraft " + v);
+            versionBig.setText(v.isEmpty() ? "Not installed" : v);
             String build = Kit.get("paper.build", null);
             versionSmall.setText(v.isEmpty() ? "Downloads on first start" : "Paper" + (build != null ? " build " + build : "") + " + Geyser");
             rebuildJoin();
         }
 
+        private boolean narrow() {
+            Container c = joinRows.getParent();
+            return c != null && c.getWidth() > 0 && c.getWidth() < 860;
+        }
+
         private void rebuildJoin() {
             List<String> lan = lanAddresses();
+            boolean narrow = narrow();
             String key = lan + "|" + Online.javaAddress() + "|" + Online.bedrockHost() + "|" + Online.bedrockPort() + "|"
-                    + online.state() + "|" + online.live() + "|" + server.state();
+                    + online.state() + "|" + online.live() + "|" + server.state() + "|" + narrow;
             if (key.equals(joinKey)) return;
             joinKey = key;
             joinRows.removeAll();
+            if (narrow) { rebuildJoinStacked(lan); return; }
             int r = 0;
             header(r++);
             addRow(r++, "On this PC", "localhost", null, "127.0.0.1", "19132");
@@ -639,6 +649,60 @@ final class App {
             joinRows.add(Box.createHorizontalStrut(1), filler);
             joinRows.revalidate();
             joinRows.repaint();
+        }
+
+        /** Narrow windows: each place gets its own block, Java and Bedrock on separate lines. */
+        private void rebuildJoinStacked(List<String> lan) {
+            int[] r = {0};
+            java.util.function.BiConsumer<String, String[]> block = (label, a) -> {
+                GridBagConstraints g = gbc(0, r[0]++);
+                g.gridwidth = 3;
+                g.insets = new Insets(r[0] == 1 ? 0 : 12, 0, 4, 0);
+                joinRows.add(Ui.label(label, Ui.bold(13), Ui.MUTED), g);
+                joinRows.add(Ui.label("Java", Ui.font(12.5f), Ui.FAINT), stackGbc(0, r[0]));
+                joinRows.add(address(a[0]), stackGbc(1, r[0]));
+                joinRows.add(Ui.copyButton(() -> a[0]), stackGbc(2, r[0]++));
+                joinRows.add(Ui.label("Bedrock", Ui.font(12.5f), Ui.FAINT), stackGbc(0, r[0]));
+                if (a[1] != null) {
+                    joinRows.add(Ui.row(0, address(a[1]), Ui.label("  port ", Ui.font(13), Ui.FAINT), address(a[2])), stackGbc(1, r[0]));
+                    joinRows.add(Ui.copyButton(() -> a[1]), stackGbc(2, r[0]++));
+                } else {
+                    joinRows.add(Ui.label(online.bedrockProblem() != null ? "Not available online" : "Not ready yet",
+                            Ui.font(13), Ui.FAINT), stackGbc(1, r[0]++));
+                }
+            };
+            block.accept("On this PC", new String[]{"localhost", "127.0.0.1", "19132"});
+            if (!lan.isEmpty()) block.accept("Same Wi-Fi", new String[]{lan.get(0), lan.get(0), "19132"});
+            String ja = Online.javaAddress();
+            if (ja != null && online.linked()) {
+                String host = Online.bedrockHost();
+                block.accept("Anywhere", new String[]{ja, host, host == null ? null : String.valueOf(Online.bedrockPort())});
+                boolean live = online.live();
+                GridBagConstraints g = gbc(0, r[0]++);
+                g.gridwidth = 3;
+                joinRows.add(Ui.label(live ? "Live now: friends anywhere can join with these."
+                        : server.isRunning() ? "Connecting to playit..." : "These go live when the server is running.",
+                        Ui.font(12), live ? Ui.GREEN_HI : Ui.FAINT), g);
+            } else {
+                GridBagConstraints g = gbc(0, r[0]++);
+                g.gridwidth = 3;
+                g.insets = new Insets(12, 0, 4, 0);
+                joinRows.add(Ui.label("Anywhere", Ui.bold(13), Ui.MUTED), g);
+                g = gbc(0, r[0]++);
+                g.gridwidth = 3;
+                joinRows.add(new Ui.Btn("Set up online play (free)", Ui.Kind.GHOST).small().onClick(() -> show("online")), g);
+            }
+            GridBagConstraints filler = gbc(3, 0);
+            filler.weightx = 1;
+            joinRows.add(Box.createHorizontalStrut(1), filler);
+            joinRows.revalidate();
+            joinRows.repaint();
+        }
+
+        private GridBagConstraints stackGbc(int x, int y) {
+            GridBagConstraints g = gbc(x, y);
+            g.insets = new Insets(3, x == 0 ? 12 : 0, 3, x == 0 ? 16 : 10);
+            return g;
         }
 
         private void header(int r) {
@@ -800,54 +864,73 @@ final class App {
         }
 
         void refresh() {
-            List<Map<?, ?>> wl = readJson("whitelist.json");
-            Set<String> ops = new TreeSet<>(String.CASE_INSENSITIVE_ORDER);
-            for (Map<?, ?> o : readJson("ops.json")) ops.add(String.valueOf(o.get("name")));
-            Set<String> names = new TreeSet<>(String.CASE_INSENSITIVE_ORDER);
+            // Everyone is matched by their player ID, so Xbox/Bedrock players show their gamertag whatever the
+            // server calls them (with or without Floodgate's name prefix, or "unknown" when added by ID).
+            Map<String, String> cacheName = new HashMap<>(); // uuid -> name the server knows them by
+            for (Map<?, ?> e : readJson("usercache.json")) cacheName.put(String.valueOf(e.get("uuid")), String.valueOf(e.get("name")));
+            Set<String> opIds = new HashSet<>(), opNames = new TreeSet<>(String.CASE_INSENSITIVE_ORDER);
+            for (Map<?, ?> o : readJson("ops.json")) { opIds.add(String.valueOf(o.get("uuid"))); opNames.add(String.valueOf(o.get("name"))); }
+
+            Map<String, PlayerInfo> byKey = new TreeMap<>(String.CASE_INSENSITIVE_ORDER);
             idFor.clear();
-            for (Map<?, ?> e : wl) {
-                String n = String.valueOf(e.get("name")), id = String.valueOf(e.get("uuid"));
-                if (id.startsWith("00000000-0000-0000-")) { // a Bedrock player added by ID
-                    String known = Server.bedrockNameFor(id);
-                    n = "." + (known != null ? known : (n.equals("unknown") || n.equals("null") ? "Bedrock player " + id.substring(19) : n.replaceFirst("^\\.", "")));
-                    idFor.put(n.toLowerCase(Locale.ROOT), id);
-                }
-                names.add(n);
+            for (Map<?, ?> e : readJson("whitelist.json")) {
+                String id = String.valueOf(e.get("uuid")), listedName = String.valueOf(e.get("name"));
+                boolean bedrock = isBedrockId(id) || listedName.startsWith(".");
+                String game = cacheName.getOrDefault(id, listedName);
+                String display = bedrock ? bedrockDisplay(id, game, listedName) : game;
+                if (bedrock) idFor.put(display.toLowerCase(Locale.ROOT), id);
+                if (bedrock) Server.rememberBedrock(display, id);
+                byKey.put(display, new PlayerInfo(display, isUnknown(game) ? null : game, bedrock, id, true));
             }
-            names.addAll(server.online);
+            for (String n : server.online) { // online right now (maybe not on the list, e.g. whitelist off)
+                String plain = n.replaceFirst("^\\.", "");
+                if (byKey.containsKey(plain)) continue;
+                String id = Server.bedrockUuidFor(plain);
+                boolean bedrock = n.startsWith(".") || id != null;
+                byKey.put(plain, new PlayerInfo(plain, n, bedrock, id, false));
+            }
 
             list.removeAll();
-            if (names.isEmpty()) {
+            if (byKey.isEmpty()) {
                 list.put(Ui.para("Nobody yet. Add yourself first, then your friends. Tip: make yourself an admin "
                         + "so you can use commands in the game.", Ui.font(13.5f), Ui.MUTED));
             }
             boolean on = server.isRunning();
-            for (String n : names) list.put(playerRow(n, ops.contains(n), server.online.contains(n), on, wlContains(wl, n)));
+            for (PlayerInfo pi : byKey.values()) {
+                boolean online = pi.game() != null && (server.online.contains(pi.game()) || server.online.contains(pi.display())
+                        || server.online.contains("." + pi.display()));
+                boolean op = (pi.id() != null && opIds.contains(pi.id())) || (pi.game() != null && opNames.contains(pi.game()));
+                list.put(playerRow(pi, op, online, on));
+            }
             list.revalidate();
             list.repaint();
         }
 
-        private boolean wlContains(List<Map<?, ?>> wl, String n) {
-            if (idFor.containsKey(n.toLowerCase(Locale.ROOT))) return true;
-            String id = Server.bedrockUuidFor(n);
-            for (Map<?, ?> e : wl) {
-                if (String.valueOf(e.get("name")).equalsIgnoreCase(n)) return true;
-                if (id != null && id.equals(String.valueOf(e.get("uuid")))) return true;
-            }
-            return false;
+        record PlayerInfo(String display, String game, boolean bedrock, String id, boolean listed) { }
+
+        private static boolean isBedrockId(String id) { return id != null && id.startsWith("00000000-0000-0000-"); }
+
+        private static boolean isUnknown(String n) { return n == null || n.equals("unknown") || n.equals("null") || n.isBlank(); }
+
+        private static String bedrockDisplay(String id, String game, String listedName) {
+            if (!isUnknown(game)) return game.replaceFirst("^\\.", "");
+            String known = Server.bedrockNameFor(id);
+            if (known != null) return known;
+            if (!isUnknown(listedName)) return listedName.replaceFirst("^\\.", "");
+            return "Xbox player " + id.substring(19);
         }
 
-        private JComponent playerRow(String n, boolean op, boolean isOnline, boolean serverOn, boolean listed) {
-            boolean bedrock = n.startsWith(".");
-            String display = bedrock ? n.substring(1) : n;
+        private JComponent playerRow(PlayerInfo p, boolean op, boolean isOnline, boolean serverOn) {
+            String display = p.display();
+            String n = p.game() != null ? p.game() : display; // the name commands need
             JLabel nameL = Ui.label(display, Ui.bold(14.5f), Ui.TEXT);
             nameL.setIcon(Ui.dot(isOnline ? Ui.GREEN_HI : new Color(0x3A414B), 9));
             nameL.setIconTextGap(12);
             List<Component> parts = new ArrayList<>(List.of(nameL));
-            parts.add(Ui.tag(bedrock ? "Bedrock" : "Java", bedrock ? Ui.BLUE : new Color(0xC9A0FF)));
+            parts.add(Ui.tag(p.bedrock() ? "Bedrock / Xbox" : "Java", p.bedrock() ? Ui.BLUE : new Color(0xC9A0FF)));
             if (op) parts.add(Ui.tag("Admin", Ui.AMBER));
             if (isOnline) parts.add(Ui.tag("Online", Ui.GREEN_HI));
-            if (!listed) parts.add(Ui.tag("Not on whitelist", Ui.RED_HI));
+            if (!p.listed()) parts.add(Ui.tag("Not on whitelist", Ui.RED_HI));
             parts.add(Ui.glue());
 
             Ui.Btn admin = new Ui.Btn(op ? "Remove admin" : "Make admin", Ui.Kind.SECONDARY).small()
@@ -857,14 +940,15 @@ final class App {
             Ui.Btn remove = new Ui.Btn("Remove", Ui.Kind.SUBTLE).small().onClick(() -> {
                 if (!Dialogs.confirm(frame, "Remove " + display + "?", display + " won't be able to join anymore.",
                         "Remove", Ui.Kind.DANGER)) return;
-                String id = bedrock ? idFor.getOrDefault(n.toLowerCase(Locale.ROOT), Server.bedrockUuidFor(display)) : null;
-                server.command(bedrock ? "fwhitelist remove " + (id != null ? id : display) : "whitelist remove " + n);
+                if (p.bedrock()) server.command("fwhitelist remove " + (p.id() != null ? p.id() : display));
+                else server.command("whitelist remove " + n);
                 if (isOnline) server.command("kick " + n + " You were removed from the whitelist");
                 later(this::refresh);
             });
-            admin.setEnabled(serverOn);
+            admin.setEnabled(serverOn && p.game() != null);
+            if (p.game() == null) admin.setToolTipText("Available after they've joined once");
             kick.setEnabled(serverOn);
-            remove.setEnabled(serverOn && listed);
+            remove.setEnabled(serverOn && p.listed());
             kick.setVisible(isOnline);
             parts.add(admin);
             parts.add(kick);

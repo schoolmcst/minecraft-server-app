@@ -1,12 +1,10 @@
 {
-  "version": "3.2",
+  "version": "3.3",
   "file": "app.jar",
-  "sha256": "9548343fe54eee08883bf0c110839822b523887bb35ee4019228b4bdab91a517",
+  "sha256": "de2ac7adc218d706ca47f4794598b3e4165db9a9cd3aa59c24f4fb12e35c2be3",
   "minJava": 21,
   "notes": [
-    "Updates itself from GitHub",
-    "Server software updates automatically on every start",
-    "Xbox players show their real names and can be added with one click",
-    "Shows the Xbox sign-in code when the server needs it"
+    "Xbox and Bedrock players show their real gamertag everywhere",
+    "The How friends join table fits small windows"
   ]
 }

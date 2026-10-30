@@ -535,7 +535,10 @@ final class Server {
     }
 
     /** Bedrock players get a "." in front of their name; show them nicely. */
-    static String nice(String name) { return name.startsWith(".") ? name.substring(1) + " (Bedrock)" : name; }
+    static String nice(String name) {
+        if (name.startsWith(".")) return name.substring(1) + " (Bedrock)";
+        return bedrockUuidFor(name) != null ? name + " (Bedrock)" : name;
+    }
 
     /** The last player who was turned away by the whitelist (offered as a one-click add). */
     volatile String lastRejected;
