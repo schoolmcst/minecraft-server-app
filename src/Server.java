@@ -326,9 +326,55 @@ final class Server {
             + "|ThreadedAnvilChunkStorage|^Saving chunks|^Saving players|^Saving worlds|^Flushing|^Closing"
             + "|^Stopping the server|^ThreadedChunkStorage|^Waiting for|^Shutting down|^\\[ChunkHolderManager\\]"
             + "|^\\[ChunkTaskScheduler\\]|^\\[MoonriseCommon\\]|^Flushed|^Saved (?:chunk|entity|POI)|^All dimensions are saved"
-            + "|^Stopping server|^Disabling|^Unloading|^\\[spark\\]|^Automatic saving is now|^Saving the game");
+            + "|^Stopping server|^Disabling|^Unloading|^\\[spark\\]|^Automatic saving is now|^Saving the game"
+            + "|StunObserver|STUN discovery|build(?:s)? behind|download the latest build|^\\*+$|Downloading Minecraft JAR"
+            + "|Minecraft JAR has been|^Running delayed init|first time you're starting|Getting Started|next-steps"
+            + "|from an external source|^\\[Geyser-Spigot\\] \\[mcxboxbroadcast\\]|^Halted|^Waiting \\d+s|RegionFile I/O");
 
     private boolean bindError;
+
+    static final Pattern XBOX_CODE = Pattern.compile("microsoft\\.com/link and enter the code (\\S+)");
+    static final Pattern XBOX_AUTHED = Pattern.compile("\\[mcxboxbroadcast\\].*Successfully authenticated as (.+?) \\(\\d+\\)");
+    static final Pattern XBOX_FRIEND = Pattern.compile("\\[mcxboxbroadcast\\].*Added (.+?) \\(\\d+\\) as a friend");
+
+    /** Xbox sign-in code waiting to be entered at microsoft.com/link (null when none). */
+    volatile String xboxCode;
+    /** Called when a new Xbox sign-in code appears. */
+    volatile java.util.function.Consumer<String> onXboxCode = c -> { };
+
+    /** Xbox add-on lines matter at any time, even during startup. Returns true if handled. */
+    private boolean handleXbox(String msg) {
+        Matcher c = XBOX_CODE.matcher(msg);
+        if (c.find()) {
+            xboxCode = c.group(1);
+            event(Kind.WARN, "Xbox sign-in needed: go to microsoft.com/link and enter the code " + xboxCode);
+            onXboxCode.accept(xboxCode);
+            fireChange();
+            return true;
+        }
+        Matcher a = XBOX_AUTHED.matcher(msg);
+        if (a.find()) {
+            xboxCode = null;
+            Kit.set("xbox.gamertag", a.group(1).trim());
+            event(Kind.SYSTEM, "Xbox sign-in done. Console friends: add " + a.group(1).trim() + " as a friend on Xbox.");
+            fireChange();
+            return true;
+        }
+        if (msg.contains("[mcxboxbroadcast]") && msg.contains("Creation of Xbox LIVE session was successful")) {
+            event(Kind.SYSTEM, "Your server now shows in the Friends tab for Xbox friends of " + Kit.get("xbox.gamertag", "the server account") + ".");
+            return true;
+        }
+        Matcher f = XBOX_FRIEND.matcher(msg);
+        if (f.find()) {
+            event(Kind.INFO, f.group(1) + " is now friends with the server's Xbox account.");
+            return true;
+        }
+        if (msg.contains("[mcxboxbroadcast]") && msg.contains("age verification")) {
+            event(Kind.ERROR, "Xbox sign-in failed: that Microsoft account needs age verification at xbox.com first.");
+            return true;
+        }
+        return false;
+    }
 
     void handleLine(String line) {
         if (line.isBlank()) return;
@@ -336,6 +382,8 @@ final class Server {
         boolean structured = m.matches();
         String level = structured ? m.group(2).toUpperCase(Locale.ROOT) : "";
         String msg = structured ? m.group(3).trim() : line.trim();
+        if (msg.startsWith("System chat: ")) msg = msg.substring("System chat: ".length()); // newer Paper versions
+        if (handleXbox(msg)) return;
 
         if (msg.contains("FAILED TO BIND TO PORT") || msg.contains("Address already in use")) {
             if (!bindError) {

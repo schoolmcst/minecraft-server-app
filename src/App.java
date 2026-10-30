@@ -46,6 +46,7 @@ final class App {
         server.eventListeners.add(e -> ui(() -> { console.add(e); dashboard.addEvent(e); }));
         server.rawListeners.add(console::raw);
         server.eulaPrompt = this::askEula;
+        server.onXboxCode = code -> ui(() -> xboxCodeDialog(code));
         server.beforeStart = () -> { Online.applyGeyserPort(); online.goLive(); };
         server.onStopped = online::stopAgent;
         online.serverRunning = () -> server.state() == Server.State.STARTING || server.state() == Server.State.RUNNING;
@@ -128,6 +129,43 @@ final class App {
         online.stopAgent();
         frame.dispose();
         System.exit(0);
+    }
+
+    static final Path XBOX_JAR = Kit.PLUGINS.resolve("Geyser-Spigot").resolve("extensions").resolve("MCXboxBroadcastExtension.jar");
+
+    private JDialog xboxDialog;
+
+    private void xboxCodeDialog(String code) {
+        if (xboxDialog != null) xboxDialog.dispose();
+        JDialog d = new JDialog(frame, "Xbox sign-in", Dialog.ModalityType.MODELESS);
+        xboxDialog = d;
+        d.setIconImages(Ui.appIcons());
+        Ui.Stack s = new Ui.Stack(12);
+        s.put(Ui.label("Sign in the server's Xbox account", Ui.bold(18), Ui.TEXT));
+        JTextArea t = Ui.para("Console support needs a Microsoft account to show your server to Xbox friends. Open "
+                + "microsoft.com/link, enter this code, and sign in with a spare account (not your main one).", Ui.font(14), Ui.MUTED);
+        t.setSize(new Dimension(400, 10));
+        s.put(t);
+        s.put(Ui.row(12, Ui.label(code, Ui.mono(26), Ui.TEXT), Ui.copyButton("Copy code", () -> code), Ui.glue()));
+        JPanel p = new JPanel(new BorderLayout());
+        p.setBackground(Ui.CARD);
+        p.setBorder(new EmptyBorder(24, 26, 20, 26));
+        p.add(s, BorderLayout.CENTER);
+        JPanel b = new JPanel(new FlowLayout(FlowLayout.RIGHT, 10, 0));
+        b.setOpaque(false);
+        b.setBorder(new EmptyBorder(18, 0, 0, 0));
+        b.add(Ui.row(10, new Ui.Btn("Later", Ui.Kind.SECONDARY).onClick(d::dispose),
+                new Ui.Btn("Open microsoft.com/link", Ui.Kind.PRIMARY).onClick(() -> Kit.browse("https://www.microsoft.com/link"))));
+        p.add(b, BorderLayout.SOUTH);
+        p.setPreferredSize(new Dimension(470, p.getPreferredSize().height));
+        d.setContentPane(p);
+        d.pack();
+        d.setLocationRelativeTo(frame);
+        d.setVisible(true);
+        // close it automatically once sign-in succeeds
+        Timer close = new Timer(2000, null);
+        close.addActionListener(e -> { if (server.xboxCode == null || !code.equals(server.xboxCode)) { d.dispose(); close.stop(); } });
+        close.start();
     }
 
     private boolean askEula() {
@@ -915,7 +953,8 @@ final class App {
         void refresh() {
             String k = online.state() + "|" + online.message() + "|" + online.live() + "|" + online.autoShare() + "|"
                     + Online.javaAddress() + "|" + Online.bedrockHost() + "|" + online.bedrockProblem() + "|"
-                    + server.state() + "|" + online.isWorking();
+                    + server.state() + "|" + online.isWorking() + "|" + server.xboxCode + "|" + Kit.get("xbox.gamertag", "")
+                    + "|" + Files.exists(XBOX_JAR) + "|" + xboxBusy;
             if (k.equals(key)) return;
             key = k;
             body.removeAll();
@@ -928,6 +967,7 @@ final class App {
                 case MANUAL -> manual();
                 case ERROR -> error();
             }
+            body.put(xboxCard());
             body.revalidate();
             body.repaint();
         }
@@ -966,6 +1006,83 @@ final class App {
             p.add(t, BorderLayout.CENTER);
             return p;
         }
+
+        private volatile boolean xboxBusy;
+
+        /** Xbox / PlayStation / Switch players: MCXboxBroadcast shows the server in their Friends tab. */
+        private JComponent xboxCard() {
+            Ui.Card c = new Ui.Card();
+            Ui.Stack s = new Ui.Stack(12);
+            s.put(Ui.cardTitle("Xbox, PlayStation and Switch players"));
+            String tag = Kit.get("xbox.gamertag", null);
+            String code = server.xboxCode;
+            boolean installed = Files.exists(XBOX_JAR);
+            if (!installed) {
+                s.put(Ui.para("Consoles can't type in a server address. The free MCXboxBroadcast add-on fixes that: it signs in "
+                        + "to an Xbox account and your server shows up in console friends' Friends tab. Use a spare Microsoft "
+                        + "account; the add-on's makers warn the account could be banned.", Ui.font(13.5f), Ui.MUTED));
+                Ui.Btn add = new Ui.Btn(xboxBusy ? "Downloading..." : "Add console support", Ui.Kind.SECONDARY).onClick(this::installXbox);
+                add.setEnabled(!xboxBusy);
+                s.put(Ui.row(10, add, Ui.glue()));
+            } else if (code != null) {
+                s.put(Ui.label("Sign in to finish setup", Ui.bold(16), Ui.AMBER));
+                s.put(Ui.para("Go to microsoft.com/link, enter the code below, and sign in with the spare Microsoft account the "
+                        + "server will use.", Ui.font(13.5f), Ui.MUTED));
+                s.put(Ui.row(12, Ui.label(code, Ui.mono(22), Ui.TEXT), Ui.copyButton("Copy code", () -> code),
+                        new Ui.Btn("Open microsoft.com/link", Ui.Kind.PRIMARY).small().onClick(() -> Kit.browse("https://www.microsoft.com/link")),
+                        Ui.glue()));
+            } else if (tag != null) {
+                JLabel t = Ui.label("Console friends add  " + tag + "  as a friend on Xbox", Ui.bold(15), Ui.TEXT);
+                t.setIcon(Ui.dot(server.isRunning() ? Ui.GREEN_HI : Ui.FAINT, 10));
+                t.setIconTextGap(10);
+                s.put(t);
+                s.put(Ui.para("Then, while the server is running, it shows up in Minecraft under Play > Friends. They still "
+                        + "need to be on the whitelist: add their gamertag as a Bedrock player on the Players page.",
+                        Ui.font(13.5f), Ui.MUTED));
+                s.put(Ui.row(10, Ui.copyButton("Copy gamertag", () -> tag), Ui.glue()));
+            } else {
+                s.put(Ui.para(server.isRunning()
+                        ? "Console support is installed. Restart the server to sign in its Xbox account."
+                        : "Console support is installed. Start the server, then sign in its Xbox account with the code shown here.",
+                        Ui.font(13.5f), Ui.MUTED));
+            }
+            c.add(s);
+            return c;
+        }
+
+        private void installXbox() {
+            if (!Dialogs.confirm(frame, "Add console support?",
+                    "This downloads the free MCXboxBroadcast add-on from GitHub. You'll sign in with a spare Microsoft "
+                            + "account (not your main one); its makers warn the account could be banned.", "Add it", Ui.Kind.PRIMARY))
+                return;
+            xboxBusy = true;
+            refreshSoon();
+            Thread t = new Thread(() -> {
+                String err = null;
+                try {
+                    Files.createDirectories(XBOX_JAR.getParent());
+                    Path tmp = Kit.download("https://github.com/MCXboxBroadcast/Broadcaster/releases/latest/download/MCXboxBroadcastExtension.jar",
+                            XBOX_JAR, "Downloading console support", null);
+                    Files.move(tmp, XBOX_JAR, java.nio.file.StandardCopyOption.REPLACE_EXISTING);
+                } catch (Exception e) {
+                    err = Kit.describe(e);
+                }
+                xboxBusy = false;
+                String e2 = err;
+                ui(() -> {
+                    if (e2 != null) Dialogs.info(frame, "Couldn't add console support", e2);
+                    else server.event(Server.Kind.SYSTEM, server.isRunning()
+                            ? "Console support added. Restart the server to sign in its Xbox account."
+                            : "Console support added. Start the server to sign in its Xbox account.");
+                    key = "";
+                    refresh();
+                });
+            }, "xbox-install");
+            t.setDaemon(true);
+            t.start();
+        }
+
+        private void refreshSoon() { ui(() -> { key = ""; refresh(); }); }
 
         private void unsupported() {
             body.put(card(Ui.cardTitle("Not available on this computer"),
