@@ -1,10 +1,10 @@
 {
   "version": "3.3",
   "file": "app.jar",
-  "sha256": "de2ac7adc218d706ca47f4794598b3e4165db9a9cd3aa59c24f4fb12e35c2be3",
+  "sha256": "13ca1ede6688943a3a6a544d971dfdcfad9c87b5458db03468d8f8f143e1bb48",
   "minJava": 21,
   "notes": [
-    "Xbox and Bedrock players show their real gamertag everywhere",
-    "The How friends join table fits small windows"
+    "Xbox players show their gamertags everywhere, without the dot",
+    "How friends join fits narrower windows"
   ]
 }

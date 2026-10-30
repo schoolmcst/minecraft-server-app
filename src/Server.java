@@ -383,7 +383,26 @@ final class Server {
         return Kit.get("bedrock.uuid." + name.replaceFirst("^\\.", "").toLowerCase(Locale.ROOT), null);
     }
 
-    static String bedrockNameFor(String uuid) { return Kit.get("bedrock.name." + uuid, null); }
+    static String bedrockNameFor(String uuid) {
+        String n = Kit.get("bedrock.name." + uuid, null);
+        if (n != null) return n;
+        // the server remembers every player who joined in usercache.json (Bedrock names start with ".")
+        for (Map<?, ?> e : App.readJson("usercache.json")) {
+            if (uuid.equals(String.valueOf(e.get("uuid")))) {
+                String name = String.valueOf(e.get("name")).replaceFirst("^\\.", "");
+                rememberBedrock(name, uuid);
+                return name;
+            }
+        }
+        return null;
+    }
+
+    static final Pattern BEDROCK_DOT = Pattern.compile("(^|[\\s<(\\[])\\.([A-Za-z0-9_]{3,20})\\b");
+
+    /** Bedrock (Xbox) players' names carry a "." in front on the server; show them without it. */
+    static String dropBedrockDots(String msg) {
+        return BEDROCK_DOT.matcher(msg).replaceAll("$1$2");
+    }
 
     static final Pattern XBOX_FRIEND = Pattern.compile("\\[mcxboxbroadcast\\].*Added (.+?) \\(\\d+\\) as a friend");
 
@@ -524,7 +543,7 @@ final class Server {
         }
         if (NOISE.matcher(msg).find()) return;
         if (msg.startsWith("[Not Secure] ")) msg = msg.substring("[Not Secure] ".length());
-        msg = msg.replaceAll("^<\\.([^>]+)>", "<$1>"); // Bedrock names carry a "." prefix
+        msg = dropBedrockDots(msg);
 
         Kind k;
         if (level.equals("ERROR") || level.equals("FATAL")) k = Kind.ERROR;

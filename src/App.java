@@ -708,7 +708,7 @@ final class App {
         private void header(int r) {
             joinRows.add(Box.createHorizontalStrut(110), gbc(0, r));
             joinRows.add(Ui.label("JAVA EDITION", Ui.bold(11), Ui.FAINT), gbc(1, r));
-            joinRows.add(Ui.label("BEDROCK EDITION  (phones, tablets, Windows)", Ui.bold(11), Ui.FAINT), span(gbc(3, r), 2));
+            joinRows.add(Ui.label("BEDROCK  (phones, consoles, Windows)", Ui.bold(11), Ui.FAINT), span(gbc(3, r), 2));
         }
 
         private GridBagConstraints span(GridBagConstraints g, int w) { g.gridwidth = w; return g; }
@@ -733,7 +733,7 @@ final class App {
             g.gridx = x;
             g.gridy = y;
             g.anchor = GridBagConstraints.WEST;
-            g.insets = new Insets(5, 0, 5, x == 1 ? 40 : 14);
+            g.insets = new Insets(5, 0, 5, x == 1 ? 24 : 10);
             return g;
         }
 
