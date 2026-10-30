@@ -335,6 +335,29 @@ final class Server {
 
     static final Pattern XBOX_CODE = Pattern.compile("microsoft\\.com/link and enter the code (\\S+)");
     static final Pattern XBOX_AUTHED = Pattern.compile("\\[mcxboxbroadcast\\].*Successfully authenticated as (.+?) \\(\\d+\\)");
+    static final Pattern XBOX_RELAY = Pattern.compile("\\[mcxboxbroadcast\\].*Relayed bedrock client (\\S+) \\((\\d+)\\)");
+    static final Pattern GEYSER_REJECTED = Pattern.compile(
+            "^\\[Geyser-Spigot\\] (\\S+) has disconnected from the Java server because of .*(?:not white-?listed|whitelist)",
+            Pattern.CASE_INSENSITIVE);
+
+    /** Floodgate's player ID for a Bedrock (Xbox) account number. */
+    static String floodgateUuid(String xuid) {
+        String h = String.format("%032x", new java.math.BigInteger(xuid));
+        return h.substring(0, 8) + "-" + h.substring(8, 12) + "-" + h.substring(12, 16) + "-" + h.substring(16, 20) + "-" + h.substring(20);
+    }
+
+    /** Remembers which Bedrock gamertag belongs to which Floodgate ID (the server can't always look it up). */
+    static void rememberBedrock(String name, String uuid) {
+        Kit.set("bedrock.uuid." + name.toLowerCase(Locale.ROOT), uuid);
+        Kit.set("bedrock.name." + uuid, name);
+    }
+
+    static String bedrockUuidFor(String name) {
+        return Kit.get("bedrock.uuid." + name.replaceFirst("^\\.", "").toLowerCase(Locale.ROOT), null);
+    }
+
+    static String bedrockNameFor(String uuid) { return Kit.get("bedrock.name." + uuid, null); }
+
     static final Pattern XBOX_FRIEND = Pattern.compile("\\[mcxboxbroadcast\\].*Added (.+?) \\(\\d+\\) as a friend");
 
     /** Xbox sign-in code waiting to be entered at microsoft.com/link (null when none). */
@@ -362,6 +385,11 @@ final class Server {
         }
         if (msg.contains("[mcxboxbroadcast]") && msg.contains("Creation of Xbox LIVE session was successful")) {
             event(Kind.SYSTEM, "Your server now shows in the Friends tab for Xbox friends of " + Kit.get("xbox.gamertag", "the server account") + ".");
+            return true;
+        }
+        Matcher r = XBOX_RELAY.matcher(msg);
+        if (r.find()) {
+            rememberBedrock(r.group(1), floodgateUuid(r.group(2)));
             return true;
         }
         Matcher f = XBOX_FRIEND.matcher(msg);
@@ -441,9 +469,24 @@ final class Server {
             event(Kind.INFO, online.isEmpty() ? "Nobody is online right now." : "Online now: " + String.join(", ", names));
             return;
         }
+        Matcher gr = GEYSER_REJECTED.matcher(msg);
+        if (gr.find()) {
+            String name = gr.group(1);
+            event(Kind.WARN, name + " (Bedrock) tried to join but isn't on the whitelist. Add them on the Players page.");
+            lastRejected = name;
+            lastRejectedBedrock = true;
+            fireChange();
+            return;
+        }
+        if (msg.contains("unable to find any existing account with the given username")) {
+            event(Kind.WARN, "The server couldn't look up that Bedrock player yet. Ask them to try joining once; "
+                    + "then an Add button for them appears on the Players page.");
+            return;
+        }
         Matcher w = NOT_WHITELISTED.matcher(msg);
         if (w.find()) {
             String name = w.group(1);
+            if (name.startsWith("/")) return; // console players show up as an address here; the Geyser line names them
             boolean bedrock = name.startsWith(".");
             event(Kind.WARN, (bedrock ? name.substring(1) + " (Bedrock)" : name)
                     + " tried to join but isn't on the whitelist. Add them on the Players page.");

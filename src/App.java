@@ -652,11 +652,15 @@ final class App {
             refresh();
         }
 
+        private final Map<String, String> idFor = new HashMap<>();
+
         private void addPlayer() {
             String n = name.getText().trim().replaceAll("\\s+", " ");
             if (n.isEmpty() || !server.isRunning()) return;
             boolean bedrock = edition.value().startsWith("Bedrock");
-            if (bedrock) server.command("fwhitelist add " + (n.contains(" ") ? "\"" + n + "\"" : n));
+            String known = bedrock ? Server.bedrockUuidFor(n) : null;
+            if (known != null) server.command("fwhitelist add " + known);
+            else if (bedrock) server.command("fwhitelist add " + (n.contains(" ") ? "\"" + n + "\"" : n));
             else server.command("whitelist add " + n.replace(" ", ""));
             name.setText("");
             later(this::refresh);
@@ -675,7 +679,8 @@ final class App {
                 c.bg = Ui.AMBER_DIM;
                 boolean bedrock = server.lastRejectedBedrock;
                 Ui.Btn yes = new Ui.Btn("Add " + r, Ui.Kind.PRIMARY).small().onClick(() -> {
-                    server.command((bedrock ? "fwhitelist add " : "whitelist add ") + r);
+                    String known = bedrock ? Server.bedrockUuidFor(r) : null;
+                    server.command(known != null ? "fwhitelist add " + known : (bedrock ? "fwhitelist add " : "whitelist add ") + r);
                     server.lastRejected = null;
                     later(this::refresh);
                 });
@@ -690,7 +695,9 @@ final class App {
         }
 
         private boolean whitelisted(String n) {
+            String id = Server.bedrockUuidFor(n);
             for (Map<?, ?> e : readJson("whitelist.json")) {
+                if (id != null && id.equals(String.valueOf(e.get("uuid")))) return true;
                 String wn = String.valueOf(e.get("name"));
                 if (wn.equalsIgnoreCase(n) || wn.equalsIgnoreCase("." + n)) return true;
             }
@@ -702,7 +709,16 @@ final class App {
             Set<String> ops = new TreeSet<>(String.CASE_INSENSITIVE_ORDER);
             for (Map<?, ?> o : readJson("ops.json")) ops.add(String.valueOf(o.get("name")));
             Set<String> names = new TreeSet<>(String.CASE_INSENSITIVE_ORDER);
-            for (Map<?, ?> e : wl) names.add(String.valueOf(e.get("name")));
+            idFor.clear();
+            for (Map<?, ?> e : wl) {
+                String n = String.valueOf(e.get("name")), id = String.valueOf(e.get("uuid"));
+                if (id.startsWith("00000000-0000-0000-")) { // a Bedrock player added by ID
+                    String known = Server.bedrockNameFor(id);
+                    n = "." + (known != null ? known : (n.equals("unknown") || n.equals("null") ? "Bedrock player " + id.substring(19) : n.replaceFirst("^\\.", "")));
+                    idFor.put(n.toLowerCase(Locale.ROOT), id);
+                }
+                names.add(n);
+            }
             names.addAll(server.online);
 
             list.removeAll();
@@ -717,7 +733,12 @@ final class App {
         }
 
         private boolean wlContains(List<Map<?, ?>> wl, String n) {
-            for (Map<?, ?> e : wl) if (String.valueOf(e.get("name")).equalsIgnoreCase(n)) return true;
+            if (idFor.containsKey(n.toLowerCase(Locale.ROOT))) return true;
+            String id = Server.bedrockUuidFor(n);
+            for (Map<?, ?> e : wl) {
+                if (String.valueOf(e.get("name")).equalsIgnoreCase(n)) return true;
+                if (id != null && id.equals(String.valueOf(e.get("uuid")))) return true;
+            }
             return false;
         }
 
@@ -741,7 +762,8 @@ final class App {
             Ui.Btn remove = new Ui.Btn("Remove", Ui.Kind.SUBTLE).small().onClick(() -> {
                 if (!Dialogs.confirm(frame, "Remove " + display + "?", display + " won't be able to join anymore.",
                         "Remove", Ui.Kind.DANGER)) return;
-                server.command(bedrock ? "fwhitelist remove " + display : "whitelist remove " + n);
+                String id = bedrock ? idFor.getOrDefault(n.toLowerCase(Locale.ROOT), Server.bedrockUuidFor(display)) : null;
+                server.command(bedrock ? "fwhitelist remove " + (id != null ? id : display) : "whitelist remove " + n);
                 if (isOnline) server.command("kick " + n + " You were removed from the whitelist");
                 later(this::refresh);
             });
