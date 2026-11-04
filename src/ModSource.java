@@ -83,6 +83,7 @@ interface ModSource {
             StringBuilder f = new StringBuilder("[[\"project_type:mod\"],[\"categories:fabric\"],[\"versions:" + mc + "\"],"
                     + "[\"server_side:required\",\"server_side:optional\"]");
             if (category != null) f.append(",[\"categories:").append(category).append("\"]");
+            else if (query.isBlank()) f.append(",[\"categories!=library\"]"); // libraries get added by themselves when a mod needs them
             f.append("]");
             String index = switch (sort) {
                 case "Best match" -> "relevance";

@@ -1,9 +1,10 @@
 {
-  "version": "4.3",
+  "version": "4.4",
   "file": "app.jar",
-  "sha256": "112138d104f7f982aef9f2debee5518b9478b6738b2ae18013fd2802031db108",
+  "sha256": "d2d20759553ae11f0651685b3df4853c59400d1c29b9ec3c5bfd77a2abdd3ac5",
   "minJava": 21,
   "notes": [
-    "CurseForge keys: pasted keys are cleaned up, and the app explains when CurseForge turns a key down"
+    "Mods: library mods are hidden while browsing (they're added by themselves when needed)",
+    "The app now keeps a problem log, so problems are easier to fix"
   ]
 }

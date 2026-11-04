@@ -72,6 +72,18 @@ final class ModsPage {
     // ================================================================== browse
 
     private void showBrowse() {
+        try {
+            showBrowse0();
+        } catch (RuntimeException e) {
+            e.printStackTrace();
+            body.removeAll();
+            body.add(Ui.para("Something went wrong showing mods: " + e + "\nTell Claude: it's written in app-log.txt.", Ui.font(13.5f), Ui.RED_HI), BorderLayout.NORTH);
+            body.revalidate();
+            body.repaint();
+        }
+    }
+
+    private void showBrowse0() {
         body.removeAll();
         Ui.Stack s = new Ui.Stack(14);
         s.put(topBar());

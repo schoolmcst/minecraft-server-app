@@ -44,6 +44,24 @@ public class ServerLauncher {
         run(args, !acquireLock());
     }
 
+    /** Without a console window (javaw), problems go to <app>/app-log.txt so they can be looked at later. */
+    private static void startLog() {
+        try {
+            java.nio.file.Path log = Kit.HOME.resolve("app-log.txt");
+            if (java.nio.file.Files.exists(log) && java.nio.file.Files.size(log) > 1_000_000)
+                java.nio.file.Files.move(log, Kit.HOME.resolve("app-log.old.txt"), java.nio.file.StandardCopyOption.REPLACE_EXISTING);
+            if (System.console() == null && !"1".equals(System.getProperty("kit.stderr"))) {
+                java.io.PrintStream ps = new java.io.PrintStream(new java.io.FileOutputStream(log.toFile(), true), true, "UTF-8");
+                System.setErr(ps);
+            }
+            System.err.println("---- " + java.time.LocalDateTime.now().withNano(0) + "  app " + Kit.VERSION + "  java " + System.getProperty("java.version"));
+            Thread.setDefaultUncaughtExceptionHandler((t, e) -> {
+                System.err.println("[" + java.time.LocalTime.now().withNano(0) + "] problem in " + t.getName() + ":");
+                e.printStackTrace();
+            });
+        } catch (Exception ignored) { }
+    }
+
     /** Applies a downloaded update, checks for a new one, and runs app/app.jar if it is newer than this starter. */
     private static boolean startNewerApp(String[] args) {
         Kit.loadSettings();
@@ -70,6 +88,7 @@ public class ServerLauncher {
 
     private static void run(String[] args, boolean alreadyOpen) {
         Kit.loadSettings();
+        if (!alreadyOpen) startLog();
         SwingUtilities.invokeLater(() -> {
             Ui.install();
             if (alreadyOpen) {
