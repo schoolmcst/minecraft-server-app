@@ -393,7 +393,7 @@ final class Ui {
     // ------------------------------------------------------------------ dropdown
 
     static class Choice extends JComponent {
-        private final List<String> options;
+        private List<String> options;
         private String value;
         private boolean hover;
         private final List<Consumer<String>> listeners = new java.util.ArrayList<>();
@@ -412,6 +412,8 @@ final class Ui {
         }
 
         String value() { return value; }
+
+        void setOptions(List<String> o) { options = new java.util.ArrayList<>(o); revalidate(); repaint(); }
 
         void setValue(String v) { value = v; repaint(); }
 
@@ -657,6 +659,21 @@ final class Ui {
                         g2.draw(new Ellipse2D.Float(2.5f, 2.5f, 15, 15));
                         g2.draw(new Ellipse2D.Float(6.5f, 2.5f, 7, 15));
                         g2.draw(new Line2D.Float(3, 10, 17, 10));
+                    }
+                    case "servers" -> {
+                        g2.draw(new RoundRectangle2D.Float(3, 3, 14, 5.5f, 2, 2));
+                        g2.draw(new RoundRectangle2D.Float(3, 11.5f, 14, 5.5f, 2, 2));
+                        g2.fill(new Ellipse2D.Float(5.2f, 4.9f, 1.8f, 1.8f));
+                        g2.fill(new Ellipse2D.Float(5.2f, 13.4f, 1.8f, 1.8f));
+                    }
+                    case "mods" -> {
+                        Path2D p = new Path2D.Float();
+                        p.moveTo(10, 2.5); p.lineTo(16.5, 6.2); p.lineTo(16.5, 13.8); p.lineTo(10, 17.5);
+                        p.lineTo(3.5, 13.8); p.lineTo(3.5, 6.2); p.closePath();
+                        g2.draw(p);
+                        g2.draw(new Line2D.Float(3.5f, 6.2f, 10, 10));
+                        g2.draw(new Line2D.Float(16.5f, 6.2f, 10, 10));
+                        g2.draw(new Line2D.Float(10, 10, 10, 17.5f));
                     }
                     case "settings" -> {
                         g2.draw(new Line2D.Float(3, 6, 17, 6));

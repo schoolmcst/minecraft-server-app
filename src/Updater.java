@@ -17,7 +17,7 @@ final class Updater {
 
     static final String BASE = System.getProperty("kit.appupdate",
             "https://raw.githubusercontent.com/schoolmcst/minecraft-server-app/main/release/");
-    static final Path APP_DIR = Kit.DIR.resolve("app");
+    static final Path APP_DIR = Kit.HOME.resolve("app");
     static final Path APP_JAR = APP_DIR.resolve("app.jar");
     static final Path PENDING = APP_DIR.resolve("app-pending.jar");
 
@@ -128,8 +128,8 @@ final class Updater {
         try {
             String java = ProcessHandle.current().info().command().orElse("java");
             if (Kit.WINDOWS) java = java.replaceAll("(?i)java\\.exe$", "javaw.exe");
-            new ProcessBuilder(java, "-jar", Kit.DIR.resolve("launcher.jar").toString())
-                    .directory(Kit.DIR.toFile()).start();
+            new ProcessBuilder(java, "-jar", Kit.HOME.resolve("launcher.jar").toString())
+                    .directory(Kit.HOME.toFile()).start();
         } catch (IOException ignored) { }
     }
 

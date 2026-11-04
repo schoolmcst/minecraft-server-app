@@ -17,30 +17,94 @@ final class Setup {
     static final String GEYSER = System.getProperty("kit.geyser", "https://download.geysermc.org/v2/projects");
 
     // ------------------------------------------------------------------ server software
+    //
+    // Two kinds of server: "paper" (survival with plugins; Geyser/Floodgate as plugins) and "fabric" (modded;
+    // Geyser/Floodgate as Fabric mods). Bedrock support ("crossplay") can be turned off for a modded server.
+
+    static final String FABRIC_META = System.getProperty("kit.fabricmeta", "https://meta.fabricmc.net/v2");
+
+    static boolean crossplay() { return Kit.getBool("server.crossplay", true); }
+
+    static String platform() { return Kit.isFabric() ? "fabric" : "spigot"; }
+
+    static Path geyserJar() { return Kit.isFabric() ? Kit.mods().resolve("Geyser-Fabric.jar") : Kit.plugins().resolve("Geyser-Spigot.jar"); }
+
+    static Path floodgateJar() { return Kit.isFabric() ? Kit.mods().resolve("Floodgate-Fabric.jar") : Kit.plugins().resolve("floodgate-spigot.jar"); }
+
+    static Path geyserDir() {
+        return Kit.isFabric() ? Kit.dir().resolve("config").resolve("Geyser-Fabric") : Kit.plugins().resolve("Geyser-Spigot");
+    }
+
+    static Path geyserConfig() { return geyserDir().resolve("config.yml"); }
+
+    static Path xboxJar() { return geyserDir().resolve("extensions").resolve("MCXboxBroadcastExtension.jar"); }
+
+    /** For Fabric, Geyser/Floodgate may come from GeyserMC (fixed names) or Modrinth (versioned names). */
+    static boolean present(Path fixed, String prefix) {
+        if (Files.exists(fixed)) return true;
+        if (!Kit.isFabric()) return false;
+        for (Mods.Installed m : Mods.installed())
+            if (m.file().getFileName().toString().toLowerCase(Locale.ROOT).startsWith(prefix)) return true;
+        return false;
+    }
 
     static boolean softwareMissing() {
-        return !Files.exists(Kit.PAPER_JAR)
-                || !Files.exists(Kit.PLUGINS.resolve("Geyser-Spigot.jar"))
-                || !Files.exists(Kit.PLUGINS.resolve("floodgate-spigot.jar"));
+        if (!Kit.hasServer()) return true;
+        if (!Files.exists(Kit.serverJar())) return true;
+        if (Kit.isFabric() && !Mods.hasFabricApi()) return true;
+        return crossplay() && (!present(geyserJar(), "geyser") || !present(floodgateJar(), "floodgate"));
     }
 
     /** Downloads whatever is missing, or everything when {@code update} is true. */
     static void ensureSoftware(boolean update, Kit.Progress p) throws IOException, InterruptedException {
-        if (!Files.exists(Kit.PAPER_JAR) || update) downloadPaper(p);
-        Files.createDirectories(Kit.PLUGINS);
-        if (!Files.exists(Kit.PLUGINS.resolve("Geyser-Spigot.jar")) || update)
-            downloadPlugin("geyser", "Geyser-Spigot.jar", "Downloading Bedrock support (Geyser)", p);
-        if (!Files.exists(Kit.PLUGINS.resolve("floodgate-spigot.jar")) || update)
-            downloadPlugin("floodgate", "floodgate-spigot.jar", "Downloading Floodgate", p);
+        if (Kit.isFabric()) {
+            if (!Files.exists(Kit.serverJar()) || update) downloadFabric(p);
+            Files.createDirectories(Kit.mods());
+            if (!Mods.hasFabricApi() || update) {
+                p.update("Downloading Fabric API", -1);
+                Mods.install("fabric-api", Kit.mcVersion(), p);
+            }
+        } else {
+            if (!Files.exists(Kit.serverJar()) || update) downloadPaper(p);
+            Files.createDirectories(Kit.plugins());
+        }
+        if (crossplay()) {
+            if (!present(geyserJar(), "geyser") || update) downloadGeyser("geyser", geyserJar(), "Downloading Bedrock support (Geyser)", p);
+            if (!present(floodgateJar(), "floodgate") || update) downloadGeyser("floodgate", floodgateJar(), "Downloading Floodgate", p);
+        }
+    }
+
+    /** Minecraft versions offered when making a new server, newest first. */
+    static List<String> availableVersions(String type) throws IOException, InterruptedException {
+        List<String> out = new ArrayList<>();
+        if ("fabric".equals(type)) {
+            for (Object o : (List<?>) Kit.Json.parse(Kit.getString(FABRIC_META + "/versions/game")))
+                if (Boolean.TRUE.equals(Kit.Json.get(o, "stable"))) out.add(Kit.Json.str(o, "version"));
+        } else {
+            Object project = Kit.Json.parse(Kit.getString(FILL));
+            if (Kit.Json.get(project, "versions") instanceof Map<?, ?> m)
+                for (Object list : m.values())
+                    if (list instanceof List<?> l) for (Object v : l) {
+                        String s = String.valueOf(v);
+                        if (!s.contains("pre") && !s.contains("rc") && !s.contains("snapshot")) out.add(s);
+                    }
+        }
+        out.sort((a, b) -> Updater.compare(b, a));
+        return out.subList(0, Math.min(out.size(), 12));
     }
 
     static void downloadPaper(Kit.Progress p) throws IOException, InterruptedException {
         p.update("Finding the latest Minecraft server", -1);
-        Object project = Kit.Json.parse(Kit.getString(FILL));
         List<String> versions = new ArrayList<>();
-        if (Kit.Json.get(project, "versions") instanceof Map<?, ?> m) {
-            for (Object list : m.values())
-                if (list instanceof List<?> l) for (Object v : l) versions.add(String.valueOf(v));
+        String target = Kit.get("mc.target", null);
+        if (target != null) {
+            versions.add(target);
+        } else {
+            Object project = Kit.Json.parse(Kit.getString(FILL));
+            if (Kit.Json.get(project, "versions") instanceof Map<?, ?> m) {
+                for (Object list : m.values())
+                    if (list instanceof List<?> l) for (Object v : l) versions.add(String.valueOf(v));
+            }
         }
         if (versions.isEmpty()) throw new IOException("Paper's download service returned no versions");
 
@@ -52,18 +116,45 @@ final class Setup {
             Object dl = Kit.Json.get(build, "downloads", "server:default");
             String url = Kit.Json.str(dl, "url");
             String sha = Kit.Json.str(dl, "checksums", "sha256");
-            Path tmp = Kit.download(url, Kit.PAPER_JAR, "Downloading the Minecraft " + v + " server", p);
+            Path tmp = Kit.download(url, Kit.serverJar(), "Downloading the Minecraft " + v + " server", p);
             if (sha != null && !sha.equalsIgnoreCase(Kit.sha256(tmp))) {
                 Files.deleteIfExists(tmp);
                 throw new IOException("The download was damaged on the way. Please try again.");
             }
-            Files.move(tmp, Kit.PAPER_JAR, StandardCopyOption.REPLACE_EXISTING);
-            Files.writeString(Kit.VERSION_FILE, v + System.lineSeparator());
+            Files.move(tmp, Kit.serverJar(), StandardCopyOption.REPLACE_EXISTING);
+            Files.writeString(Kit.versionFile(), v + System.lineSeparator());
             Kit.set("paper.build", Kit.Json.get(build, "id"));
             Kit.set("paper.newer", null);
+            Kit.set("mc.target", null);
             return;
         }
-        throw new IOException("No stable Paper server build is available right now");
+        throw new IOException(target != null ? "There's no stable server for Minecraft " + target + " yet"
+                : "No stable Paper server build is available right now");
+    }
+
+    /** Fabric's server launcher: one jar that fetches Minecraft and the loader on its first run. */
+    static void downloadFabric(Kit.Progress p) throws IOException, InterruptedException {
+        p.update("Finding the Fabric server", -1);
+        String mc = Kit.get("mc.target", null);
+        if (mc == null) mc = availableVersions("fabric").get(0);
+        String loader = firstStable(Kit.Json.parse(Kit.getString(FABRIC_META + "/versions/loader/" + mc)), "loader");
+        String installer = firstStable(Kit.Json.parse(Kit.getString(FABRIC_META + "/versions/installer")), null);
+        if (loader == null || installer == null) throw new IOException("Fabric doesn't support Minecraft " + mc + " yet");
+        Path tmp = Kit.download(FABRIC_META + "/versions/loader/" + mc + "/" + loader + "/" + installer + "/server/jar",
+                Kit.serverJar(), "Downloading the Fabric " + mc + " server", p);
+        Files.move(tmp, Kit.serverJar(), StandardCopyOption.REPLACE_EXISTING);
+        Files.writeString(Kit.versionFile(), mc + System.lineSeparator());
+        Kit.set("fabric.loader", loader);
+        Kit.set("mc.target", null);
+    }
+
+    private static String firstStable(Object list, String inner) {
+        if (!(list instanceof List<?> l)) return null;
+        for (Object o : l) {
+            Object e = inner == null ? o : Kit.Json.get(o, inner);
+            if (Boolean.TRUE.equals(Kit.Json.get(e, "stable"))) return Kit.Json.str(e, "version");
+        }
+        return null;
     }
 
     /** Newest build whose channel is STABLE, or null. */
@@ -80,10 +171,18 @@ final class Setup {
         return best;
     }
 
-    static void downloadPlugin(String project, String fileName, String label, Kit.Progress p)
+    /** Geyser or Floodgate for this server's platform (GeyserMC's site first, Modrinth as a fallback for Fabric). */
+    static void downloadGeyser(String project, Path target, String label, Kit.Progress p)
             throws IOException, InterruptedException {
-        Path target = Kit.PLUGINS.resolve(fileName);
-        Path tmp = Kit.download(GEYSER + "/" + project + "/versions/latest/builds/latest/downloads/spigot", target, label, p);
+        Files.createDirectories(target.getParent());
+        Path tmp;
+        try {
+            tmp = Kit.download(GEYSER + "/" + project + "/versions/latest/builds/latest/downloads/" + platform(), target, label, p);
+        } catch (IOException e) {
+            if (!Kit.isFabric()) throw e;
+            Mods.install(project, Kit.mcVersion(), p);
+            return;
+        }
         Files.move(tmp, target, StandardCopyOption.REPLACE_EXISTING);
         Kit.set(project + ".sha", Kit.sha256(target));
     }
@@ -91,7 +190,6 @@ final class Setup {
     // ------------------------------------------------------------------ automatic updates
 
     static final String XBOX_RELEASES = System.getProperty("kit.xboxdl", "https://github.com/MCXboxBroadcast/Broadcaster/releases");
-    static final Path XBOX_JAR = Kit.PLUGINS.resolve("Geyser-Spigot").resolve("extensions").resolve("MCXboxBroadcastExtension.jar");
 
     /**
      * Keeps the server software current. Called before each start. Paper only gets new builds of the Minecraft
@@ -101,18 +199,18 @@ final class Setup {
     static List<String> autoUpdate(Kit.Progress p) {
         List<String> done = new ArrayList<>();
         try {
-            if (updatePaperBuild(p)) done.add("Minecraft server (Paper build " + Kit.get("paper.build", "?") + ")");
+            if (!Kit.isFabric() && updatePaperBuild(p)) done.add("Minecraft server (Paper build " + Kit.get("paper.build", "?") + ")");
         } catch (Exception ignored) { }
         try {
-            if (updateGeyserProject("geyser", "Geyser-Spigot.jar", "Bedrock support", p)) done.add("Bedrock support (Geyser)");
+            if (crossplay() && updateGeyserProject("geyser", geyserJar(), "Bedrock support", p)) done.add("Bedrock support (Geyser)");
         } catch (Exception ignored) { }
         try {
-            if (updateGeyserProject("floodgate", "floodgate-spigot.jar", "Floodgate", p)) done.add("Floodgate");
+            if (crossplay() && updateGeyserProject("floodgate", floodgateJar(), "Floodgate", p)) done.add("Floodgate");
         } catch (Exception ignored) { }
         try {
-            if (Files.exists(XBOX_JAR) && updateXbox(p)) done.add("console support (MCXboxBroadcast " + Kit.get("xbox.tag", "") + ")");
+            if (Files.exists(xboxJar()) && updateXbox(p)) done.add("console support (MCXboxBroadcast " + Kit.get("xbox.tag", "") + ")");
         } catch (Exception ignored) { }
-        try { checkNewerMinecraft(); } catch (Exception ignored) { }
+        try { if (!Kit.isFabric()) checkNewerMinecraft(); } catch (Exception ignored) { }
         Kit.set("server.lastUpdateCheck", System.currentTimeMillis());
         return done;
     }
@@ -120,7 +218,7 @@ final class Setup {
     /** Newest stable Paper build of the Minecraft version already installed. */
     static boolean updatePaperBuild(Kit.Progress p) throws IOException, InterruptedException {
         String v = Kit.mcVersion();
-        if (v.isEmpty() || !Files.exists(Kit.PAPER_JAR)) return false;
+        if (v.isEmpty() || !Files.exists(Kit.serverJar())) return false;
         Map<?, ?> build = latestStable(Kit.Json.parse(Kit.getString(FILL + "/versions/" + v + "/builds")));
         if (build == null) return false;
         long id = build.get("id") instanceof Number n ? n.longValue() : -1;
@@ -128,10 +226,10 @@ final class Setup {
         Object dl = Kit.Json.get(build, "downloads", "server:default");
         String sha = Kit.Json.str(dl, "checksums", "sha256");
         if (have >= id) return false;
-        if (have < 0 && sha != null && sha.equalsIgnoreCase(Kit.sha256(Kit.PAPER_JAR))) { Kit.set("paper.build", id); return false; }
-        Path tmp = Kit.download(Kit.Json.str(dl, "url"), Kit.PAPER_JAR, "Updating the Minecraft server", p);
+        if (have < 0 && sha != null && sha.equalsIgnoreCase(Kit.sha256(Kit.serverJar()))) { Kit.set("paper.build", id); return false; }
+        Path tmp = Kit.download(Kit.Json.str(dl, "url"), Kit.serverJar(), "Updating the Minecraft server", p);
         if (sha != null && !sha.equalsIgnoreCase(Kit.sha256(tmp))) { Files.deleteIfExists(tmp); return false; }
-        Files.move(tmp, Kit.PAPER_JAR, StandardCopyOption.REPLACE_EXISTING);
+        Files.move(tmp, Kit.serverJar(), StandardCopyOption.REPLACE_EXISTING);
         Kit.set("paper.build", id);
         return true;
     }
@@ -157,18 +255,17 @@ final class Setup {
     static String newerMinecraft() { return Kit.get("paper.newer", null); }
 
     /** Geyser/Floodgate: download only when the published build differs from the file we have. */
-    static boolean updateGeyserProject(String project, String fileName, String label, Kit.Progress p)
+    static boolean updateGeyserProject(String project, Path target, String label, Kit.Progress p)
             throws IOException, InterruptedException {
-        Path target = Kit.PLUGINS.resolve(fileName);
         if (!Files.exists(target)) return false;
         Object info = Kit.Json.parse(Kit.getString(GEYSER + "/" + project + "/versions/latest/builds/latest"));
-        String sha = Kit.Json.str(info, "downloads", "spigot", "sha256");
+        String sha = Kit.Json.str(info, "downloads", platform(), "sha256");
         String build = Kit.Json.str(info, "build");
         String key = project + ".sha";
         String have = Kit.get(key, null);
         if (have == null) { have = Kit.sha256(target); Kit.set(key, have); }
         if (sha == null || sha.equalsIgnoreCase(have)) return false;
-        Path tmp = Kit.download(GEYSER + "/" + project + "/versions/latest/builds/latest/downloads/spigot", target,
+        Path tmp = Kit.download(GEYSER + "/" + project + "/versions/latest/builds/latest/downloads/" + platform(), target,
                 "Updating " + label, p);
         String got = Kit.sha256(tmp);
         if (!got.equalsIgnoreCase(sha)) { Files.deleteIfExists(tmp); return false; }
@@ -191,9 +288,9 @@ final class Setup {
         String have = Kit.get("xbox.tag", null);
         if (have == null) { Kit.set("xbox.tag", tag); return false; } // the jar we have came from the current release
         if (have.equals(tag)) return false;
-        Path tmp = Kit.download(XBOX_RELEASES + "/download/" + tag + "/MCXboxBroadcastExtension.jar", XBOX_JAR,
+        Path tmp = Kit.download(XBOX_RELEASES + "/download/" + tag + "/MCXboxBroadcastExtension.jar", xboxJar(),
                 "Updating console support", p);
-        Files.move(tmp, XBOX_JAR, StandardCopyOption.REPLACE_EXISTING);
+        Files.move(tmp, xboxJar(), StandardCopyOption.REPLACE_EXISTING);
         Kit.set("xbox.tag", tag);
         return true;
     }
@@ -213,21 +310,21 @@ final class Setup {
 
     // ------------------------------------------------------------------ EULA
 
-    static final Path EULA = Kit.DIR.resolve("eula.txt");
+    static Path eula() { return Kit.dir().resolve("eula.txt"); }
 
     static boolean eulaAccepted() {
-        try { return Files.exists(EULA) && Files.readString(EULA).contains("eula=true"); }
+        try { return Files.exists(eula()) && Files.readString(eula()).contains("eula=true"); }
         catch (IOException e) { return false; }
     }
 
     static void acceptEula() throws IOException {
-        Files.writeString(EULA, "# Accepted in the Minecraft Server app on " + LocalDate.now()
+        Files.writeString(eula(), "# Accepted in the Minecraft Server app on " + LocalDate.now()
                 + " (https://aka.ms/MinecraftEULA)" + System.lineSeparator() + "eula=true" + System.lineSeparator());
     }
 
     // ------------------------------------------------------------------ server.properties
 
-    static final Path PROPS = Kit.DIR.resolve("server.properties");
+    static Path props() { return Kit.dir().resolve("server.properties"); }
 
     static Map<String, String> readProps() {
         Properties p = new Properties();
@@ -241,7 +338,7 @@ final class Setup {
 
     /** Updates keys in place, keeping comments and order; appends keys that aren't there yet. */
     static void writeProps(Map<String, String> changes) throws IOException {
-        List<String> lines = Files.exists(PROPS)
+        List<String> lines = Files.exists(props())
                 ? new ArrayList<>(readPropsText().lines().toList())
                 : new ArrayList<>(List.of("#Minecraft server properties"));
         Set<String> done = new HashSet<>();
@@ -258,13 +355,14 @@ final class Setup {
         }
         for (var e : changes.entrySet())
             if (!done.contains(e.getKey())) lines.add(e.getKey() + "=" + escapeProp(e.getValue()));
-        Files.write(PROPS, lines, StandardCharsets.UTF_8);
+        Files.write(props(), lines, StandardCharsets.UTF_8);
     }
 
     /** Minecraft reads server.properties as UTF-8 and falls back to Latin-1; do the same. */
     static String readPropsText() throws IOException {
-        if (!Files.exists(PROPS)) return "";
-        byte[] b = Files.readAllBytes(PROPS);
+        if (!Kit.hasServer()) return "";
+        if (!Files.exists(props())) return "";
+        byte[] b = Files.readAllBytes(props());
         try {
             return StandardCharsets.UTF_8.newDecoder().decode(java.nio.ByteBuffer.wrap(b)).toString();
         } catch (java.nio.charset.CharacterCodingException e) {
@@ -286,13 +384,12 @@ final class Setup {
 
     // ------------------------------------------------------------------ Geyser
 
-    static final Path GEYSER_CONFIG = Kit.PLUGINS.resolve("Geyser-Spigot").resolve("config.yml");
 
     /** The broadcast-port in Geyser's config, or -1 if unknown. */
     static int geyserBroadcastPort() {
         try {
-            if (!Files.exists(GEYSER_CONFIG)) return -1;
-            Matcher m = Pattern.compile("(?m)^\\s*broadcast-port:\\s*\"?(\\d+)").matcher(Files.readString(GEYSER_CONFIG));
+            if (!Files.exists(geyserConfig())) return -1;
+            Matcher m = Pattern.compile("(?m)^\\s*broadcast-port:\\s*\"?(\\d+)").matcher(Files.readString(geyserConfig()));
             return m.find() ? Integer.parseInt(m.group(1)) : -1;
         } catch (IOException | NumberFormatException e) {
             return -1;
@@ -302,13 +399,13 @@ final class Setup {
     /** Tells Geyser which public port Bedrock players use (needed behind playit). Returns true if it changed. */
     static boolean setGeyserBroadcastPort(int port) {
         try {
-            if (!Files.exists(GEYSER_CONFIG)) return false;
-            String yml = Files.readString(GEYSER_CONFIG, StandardCharsets.UTF_8);
+            if (!Files.exists(geyserConfig())) return false;
+            String yml = Files.readString(geyserConfig(), StandardCharsets.UTF_8);
             Matcher m = Pattern.compile("(?m)^(\\s*broadcast-port:\\s*)\"?(\\d*)\"?[ \\t]*$").matcher(yml);
             if (!m.find()) return false;
             if (m.group(2).equals(String.valueOf(port))) return false;
             String out = yml.substring(0, m.start()) + m.group(1) + port + yml.substring(m.end());
-            Files.writeString(GEYSER_CONFIG, out, StandardCharsets.UTF_8);
+            Files.writeString(geyserConfig(), out, StandardCharsets.UTF_8);
             return true;
         } catch (IOException e) {
             return false;
@@ -321,7 +418,8 @@ final class Setup {
     static final DateTimeFormatter STAMP = DateTimeFormatter.ofPattern("yyyy-MM-dd_HH-mm-ss");
 
     static List<Path> worldFolders() {
-        try (Stream<Path> s = Files.list(Kit.DIR)) {
+        if (!Kit.hasServer()) return List.of();
+        try (Stream<Path> s = Files.list(Kit.dir())) {
             return s.filter(Files::isDirectory)
                     .filter(d -> Files.exists(d.resolve("level.dat")))
                     .sorted().collect(Collectors.toList());
@@ -336,14 +434,14 @@ final class Setup {
     static Path backupWorlds(String prefix) throws IOException {
         List<Path> worlds = worldFolders();
         if (worlds.isEmpty()) return null;
-        Files.createDirectories(Kit.BACKUPS);
-        Path zip = Kit.BACKUPS.resolve(prefix + "-" + LocalDateTime.now().format(STAMP) + ".zip");
+        Files.createDirectories(Kit.backups());
+        Path zip = Kit.backups().resolve(prefix + "-" + LocalDateTime.now().format(STAMP) + ".zip");
         try (ZipOutputStream zout = new ZipOutputStream(new BufferedOutputStream(Files.newOutputStream(zip)))) {
             for (Path w : worlds) {
                 try (Stream<Path> files = Files.walk(w)) {
                     for (Path f : (Iterable<Path>) files.filter(Files::isRegularFile)::iterator) {
                         if (f.getFileName().toString().equals("session.lock")) continue;
-                        zout.putNextEntry(new ZipEntry(Kit.DIR.relativize(f).toString().replace('\\', '/')));
+                        zout.putNextEntry(new ZipEntry(Kit.dir().relativize(f).toString().replace('\\', '/')));
                         try {
                             Files.copy(f, zout);
                         } catch (IOException locked) {
@@ -362,8 +460,9 @@ final class Setup {
     }
 
     static List<Path> listBackups() {
-        if (!Files.isDirectory(Kit.BACKUPS)) return List.of();
-        try (Stream<Path> s = Files.list(Kit.BACKUPS)) {
+        if (!Kit.hasServer()) return List.of();
+        if (!Files.isDirectory(Kit.backups())) return List.of();
+        try (Stream<Path> s = Files.list(Kit.backups())) {
             return s.filter(p -> p.getFileName().toString().endsWith(".zip"))
                     .sorted(Comparator.comparing((Path p) -> p.toFile().lastModified()).reversed())
                     .collect(Collectors.toList());
@@ -390,12 +489,12 @@ final class Setup {
                 tops.add(name.split("/")[0]);
             }
         }
-        for (String t : tops) deleteTree(Kit.DIR.resolve(t));
+        for (String t : tops) deleteTree(Kit.dir().resolve(t));
         try (ZipInputStream in = new ZipInputStream(new BufferedInputStream(Files.newInputStream(zip)))) {
             for (ZipEntry e; (e = in.getNextEntry()) != null; ) {
                 if (e.isDirectory() || e.getName().contains("..")) continue;
-                Path out = Kit.DIR.resolve(e.getName()).normalize();
-                if (!out.startsWith(Kit.DIR)) continue;
+                Path out = Kit.dir().resolve(e.getName()).normalize();
+                if (!out.startsWith(Kit.dir())) continue;
                 Files.createDirectories(out.getParent());
                 Files.copy(in, out, StandardCopyOption.REPLACE_EXISTING);
             }
@@ -431,7 +530,7 @@ final class Setup {
 
     // ------------------------------------------------------------------ app icon + desktop shortcut
 
-    static final Path ICON_FILE = Kit.DIR.resolve("app-icon.ico");
+    static final Path ICON_FILE = Kit.HOME.resolve("app-icon.ico");
 
     static void writeIco(Path to) throws IOException {
         int[] sizes = {16, 24, 32, 48, 64, 256};
@@ -461,16 +560,20 @@ final class Setup {
     /** Windows only: puts a "Minecraft Server" shortcut on the desktop that opens this app without a console. */
     static String createDesktopShortcut() throws IOException, InterruptedException {
         writeIco(ICON_FILE);
-        Path javaw = Kit.DIR.resolve("runtime").resolve("bin").resolve("javaw.exe");
+        Path javaw = Kit.HOME.resolve("runtime").resolve("bin").resolve("javaw.exe");
         String target = Files.exists(javaw) ? javaw.toString()
                 : ProcessHandle.current().info().command().orElse("javaw.exe").replace("java.exe", "javaw.exe");
-        String ps = "$d=[Environment]::GetFolderPath('Desktop');"
-                + "$s=(New-Object -ComObject WScript.Shell).CreateShortcut((Join-Path $d 'Minecraft Server.lnk'));"
+        // a desktop icon, plus a Start menu entry so it can be found by searching "Minecraft Server"
+        String one = "$s=$w.CreateShortcut((Join-Path $d 'Minecraft Server.lnk'));"
                 + "$s.TargetPath=" + psq(target) + ";"
-                + "$s.Arguments=" + psq("-jar \"" + Kit.DIR.resolve("launcher.jar") + "\"") + ";"
-                + "$s.WorkingDirectory=" + psq(Kit.DIR.toString()) + ";"
+                + "$s.Arguments=" + psq("-jar \"" + Kit.HOME.resolve("launcher.jar") + "\"") + ";"
+                + "$s.WorkingDirectory=" + psq(Kit.HOME.toString()) + ";"
                 + "$s.IconLocation=" + psq(ICON_FILE + ",0") + ";"
-                + "$s.Description='Minecraft Server';$s.Save();Write-Output $d";
+                + "$s.Description='Minecraft Server';$s.Save();";
+        String ps = "$w=New-Object -ComObject WScript.Shell;"
+                + "$d=[Environment]::GetFolderPath('Desktop');" + one
+                + "$d=[Environment]::GetFolderPath('Programs');" + one
+                + "Write-Output ([Environment]::GetFolderPath('Desktop'))";
         Process p = new ProcessBuilder("powershell", "-NoProfile", "-NonInteractive", "-Command", ps)
                 .redirectErrorStream(true).start();
         String out = new String(p.getInputStream().readAllBytes(), StandardCharsets.UTF_8).trim();

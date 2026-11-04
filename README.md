@@ -1,87 +1,61 @@
 # Minecraft Server app
 
-A survival server that runs on your own computer, in a proper app window. Java Edition and
-Bedrock Edition players (phones, tablets, Windows) play together in the same world, and with
-one-time setup your friends can join from anywhere.
+Run Minecraft servers on your own computer from one app. Survival servers work for Java, Bedrock and Xbox
+players together; modded servers run Fabric mods from Modrinth. Friends can join from anywhere with free online play.
 
-Under the hood: **Paper** (a faster drop-in for the official server; gameplay stays vanilla),
-**Geyser + Floodgate** (Bedrock support), and **playit.gg** (free online play, no router settings).
+Under the hood: **Paper** (survival; gameplay stays vanilla), **Fabric** (modded), **Geyser + Floodgate**
+(Bedrock players), **MCXboxBroadcast** (Xbox/console players), and **playit.gg** (online play, no router settings).
 
 ---
 
-## Start it
+## Opening the app
 
-Put this folder somewhere permanent (e.g. Documents), then:
+Search **Minecraft Server** in the Start menu, or use the icon on your desktop. The app is installed in
+`AppData\Local\Programs\Minecraft Server`; your servers live in their own folders (new ones go in
+`Documents\Minecraft Servers`). Moving a server folder is fine: use **Servers > Add existing folder** to point the
+app at its new place.
 
-- **Windows:** double-click **`Start Server.bat`**. The first time, a black window downloads Java for
-  the app (about 50 MB, once). After that the app opens directly. In the app, use
-  **Settings > Add desktop shortcut** for a one-click icon.
-- **Mac:** right-click **`start-server.command`** > **Open** > **Open** the first time, then double-click.
-- **Linux:** run `./start-server.command`.
+## Servers
 
-In the app, click **Start server**. The first start downloads the server (about 100 MB) and asks
-you to accept Minecraft's EULA. **Windows:** if a firewall pop-up for Java appears, tick
-**Private networks** and click **Allow**.
+The **Servers** page lists your servers. Click the server name at the top of the sidebar to get there.
 
-## The app
+- **New server**: pick **Survival** (Java + Bedrock + Xbox) or **Modded** (Fabric), a Minecraft version, game mode
+  and difficulty. You can copy the whitelist and admins from the server you have open. The first **Start server**
+  downloads what it needs and builds a new world.
+- **Switch** opens another server. One server runs at a time, and they all share your online addresses and Xbox
+  account, so friends always join the same way.
+- **Remove** only takes a server off the list. Its folder and world are never deleted by the app.
+
+## Modded servers
+
+Open **Mods** in the sidebar to search Modrinth and install Fabric mods. Mods they need are added automatically.
+Mods tagged **Players need it too** must also be installed by each Java player (same version). Bedrock and Xbox
+players are off by default on modded servers because they can't see most modded things.
+
+## Pages
 
 | Page | What it's for |
 |---|---|
-| **Dashboard** | Status, who's online, the addresses friends type in (with Copy buttons), recent activity. |
-| **Players** | Add people to the whitelist (Java name or Bedrock/Xbox gamertag), make admins, kick, remove. If someone not on the list tries to join, a one-click **Add** appears. |
-| **Console** | A tidy feed of what's happening, a command box, and quick buttons (make it day, clear weather...). Flip **Full server log** for the raw log. |
-| **Play online** | Lets friends join from anywhere. See below. |
-| **Settings** | Server name, game mode, difficulty, max players, PvP, whitelist, memory, backups (restore too), updates, desktop shortcut. |
+| **Dashboard** | Status, who's online, the addresses friends type in, recent activity. |
+| **Players** | Whitelist (Java name or Xbox gamertag), admins, kick, remove. |
+| **Mods** | Modded servers only: add and remove mods. |
+| **Console** | A tidy feed of what's happening and a box for commands. |
+| **Play online** | Friends join from anywhere (playit.gg), plus Xbox/console setup. |
+| **Settings** | Server name, rules, memory, backups, updates, desktop shortcut. |
 
-Closing the window while the server runs asks first, then saves the world and shuts down cleanly.
+## Updates
 
-## Playing with friends over the internet
-
-Open **Play online** and click **Set up online play**:
-
-1. Your browser opens playit.gg. Create a free account (or log in) and approve this PC.
-2. The app creates two addresses, one for Java and one for Bedrock (with a port).
-3. Share them. They stay the same, and go live whenever the server is running
-   (the header shows **Online + internet**).
-
-The playit program runs quietly in the background only while your server is on. Turn off
-"Go online automatically" on that page to keep the server Wi-Fi only.
-If playit ever refuses to make an address automatically, the page shows a short manual step.
-
-Online play is automatic on Windows and Linux. On a Mac, install playit from
-<https://playit.gg/download> and add a "Minecraft Java" tunnel (port 25565) and a
-"Minecraft Bedrock" tunnel (port 19132).
-
-## Good to know
-
-- **Whitelist:** only people you add can join. That matters because the server runs on your computer.
-- **Backups:** every start backs up the world (the newest 5 are kept). Restore from Settings > Backups;
-  your current world is backed up first.
-- **Updating:** Settings > Check for updates (server stopped). Bedrock players usually need the latest
-  Geyser, so update when they suddenly can't connect.
-- **Consoles** (Xbox, PlayStation, Switch) can't type in server addresses. See
-  <https://geysermc.org/wiki/geyser/using-geyser-with-consoles/>.
-- **Your PC must be on** with the app open for anyone to play.
-- The `src` folder is the app's source code, included so you can see what it does. You never need it.
+- **The app** checks for a new version when it opens and every few hours, and installs it by itself.
+- **Server software** (server fixes, Bedrock support, console support) updates every time a server starts. New
+  Minecraft versions for survival servers are offered in Settings, because Java players must update to match.
+- **Backups**: every start backs up the world (newest 5 kept). Restore from Settings > Backups.
 
 ## Troubleshooting
 
 | Problem | Fix |
 |---|---|
-| "Couldn't set up Java automatically" | Check your internet and run `Start Server.bat` again, or follow the manual steps it prints. |
-| "Already open" | The app is already running; check your taskbar. |
-| Server says it stopped unexpectedly | Console shows the last messages; Settings > Open full log has everything. |
+| Desktop icon says it can't find the app | Open the app from the Start menu, then Settings > Add desktop shortcut. |
+| A server shows "Folder missing" | You moved or renamed it. Remove it from the list, then Add existing folder. |
 | "The server's port is already in use" | Another Minecraft server is running on this PC. Close it first. |
-| Bedrock friends get "Unable to connect" online | Restart the server once after setting up online play (the app tells you when). Check they typed the port too. |
-| Friends on your Wi-Fi can't connect | Allow Java through Windows Firewall (search "Allow an app through Windows Firewall"). |
-| Download fails | Get Paper from <https://papermc.io/downloads/paper>, rename it `paper.jar`, put it in this folder; put Geyser + Floodgate (Spigot versions from <https://geysermc.org/download>) in `plugins`. |
-
-## Updates
-
-Everything keeps itself up to date:
-
-- **The app** checks for a new version every time it opens (and every few hours while it's open) and installs it by
-  itself. Turn this off in **Settings > This app**.
-- **The server software** (Minecraft server fixes, Bedrock support, Floodgate, console support) updates every time
-  the server starts, so Bedrock and Xbox friends can still join after their game updates. A brand-new Minecraft version
-  is only offered (Settings > Server software), because Java players have to update their game to match.
+| Bedrock friends can't connect online | Restart the server once after setting up online play; check they typed the port. |
+| A modded server won't start | Console shows the last messages. Remove the newest mod (Mods page) and try again. |

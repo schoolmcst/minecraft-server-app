@@ -32,6 +32,9 @@ public class ServerLauncher {
             System.exit(1);
         }
 
+        // an old copy inside a server folder hands over to the installed app, so there's only ever one app
+        if (!"1".equals(System.getProperty("kit.inner")) && System.getProperty("kit.dir") == null && handOverToInstalledApp()) return;
+
         if (!"1".equals(System.getProperty("kit.inner"))) {
             boolean alreadyOpen = !acquireLockWaitingForRestart();
             if (!alreadyOpen && startNewerApp(args)) return;
@@ -79,9 +82,25 @@ public class ServerLauncher {
         });
     }
 
+    private static boolean handOverToInstalledApp() {
+        try {
+            Path inst = Kit.installDir();
+            if (inst == null || inst.equals(Kit.HOME) || !Kit.homeIsServer()) return false;
+            Path jar = inst.resolve("launcher.jar");
+            if (!Files.exists(jar)) return false;
+            String java = ProcessHandle.current().info().command().orElse("javaw");
+            if (Kit.WINDOWS) java = java.replaceAll("(?i)java\\.exe$", "javaw.exe");
+            new ProcessBuilder(java, "-jar", jar.toString()).directory(inst.toFile()).start();
+            System.exit(0);
+            return true;
+        } catch (Exception e) {
+            return false;
+        }
+    }
+
     /** After "Restart app to update", the old copy may need a few seconds to close. */
     private static boolean acquireLockWaitingForRestart() {
-        Path marker = Kit.DIR.resolve(".app.restarting");
+        Path marker = Kit.HOME.resolve(".app.restarting");
         boolean restarting = Files.exists(marker);
         for (int i = 0; ; i++) {
             if (acquireLock()) {
@@ -95,7 +114,7 @@ public class ServerLauncher {
 
     private static boolean acquireLock() {
         try {
-            Path f = Kit.DIR.resolve(".app.lock");
+            Path f = Kit.HOME.resolve(".app.lock");
             FileChannel ch = FileChannel.open(f, StandardOpenOption.CREATE, StandardOpenOption.WRITE);
             lock = ch.tryLock();
             if (lock == null) ch.close();

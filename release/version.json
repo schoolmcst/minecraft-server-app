@@ -1,10 +1,11 @@
 {
-  "version": "3.3",
+  "version": "4.0",
   "file": "app.jar",
-  "sha256": "13ca1ede6688943a3a6a544d971dfdcfad9c87b5458db03468d8f8f143e1bb48",
+  "sha256": "63a9a716bf472b2ca20e5c32772994b85e30f911e49844e5b98f5c82833c7127",
   "minJava": 21,
   "notes": [
-    "Xbox players show their gamertags everywhere, without the dot",
-    "How friends join fits narrower windows"
+    "The app installs like a normal program, with a Start menu entry",
+    "New Servers page: make survival or modded servers and switch between them",
+    "Mods page for modded servers, with Modrinth search"
   ]
 }

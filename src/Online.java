@@ -223,7 +223,7 @@ final class Online {
         if (a != null && a.isAlive()) return;
         ensureAgentSilently();
         String socket = Kit.WINDOWS ? "\\\\.\\pipe\\playit-minecraft-server-kit"
-                : Paths.get(System.getProperty("java.io.tmpdir"), "playit-mckit-" + Math.abs(Kit.DIR.hashCode()) + ".sock").toString();
+                : Paths.get(System.getProperty("java.io.tmpdir"), "playit-mckit-" + Math.abs(Kit.HOME.hashCode()) + ".sock").toString();
         List<String> cmd = List.of(agentPath().toString(),
                 "--secret-path", SECRET.toString(),
                 "--log-path", AGENT_LOG.toString(),

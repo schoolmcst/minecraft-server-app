@@ -54,6 +54,16 @@ final class Server {
     boolean isBusy() { return state == State.PREPARING || state == State.STARTING || state == State.STOPPING; }
     synchronized List<Event> events() { return new ArrayList<>(events); }
 
+    /** Forget the old server's activity when the app switches to another server. */
+    void resetForSwitch() {
+        synchronized (this) { events.clear(); }
+        online.clear();
+        lastRejected = null;
+        xboxCode = null;
+        state = State.STOPPED;
+        fireChange();
+    }
+
     private void setState(State s, String d) {
         state = s;
         detail = d == null ? "" : d;
@@ -83,6 +93,7 @@ final class Server {
     // ------------------------------------------------------------------ start / stop
 
     void start() {
+        if (!Kit.hasServer()) return;
         if (state != State.STOPPED && state != State.CRASHED) return;
         stopRequested = false;
         setState(State.PREPARING, "Getting ready");
@@ -279,7 +290,7 @@ final class Server {
                 "-XX:SurvivorRatio=32", "-XX:+PerfDisableSharedMem", "-XX:MaxTenuringThreshold=1",
                 "-Dstdout.encoding=UTF-8", "-Dstderr.encoding=UTF-8",
                 "-Dterminal.jline=false", "-Dterminal.ansi=false",
-                "-jar", Kit.PAPER_JAR.toString(), "--nogui"));
+                "-jar", Kit.serverJar().toString(), "--nogui"));
 
         online.clear();
         synchronized (recentRaw) { recentRaw.clear(); }
@@ -290,7 +301,7 @@ final class Server {
         event(Kind.SYSTEM, "Starting the server with " + ram.replace("G", " GB") + " of memory...");
 
         Process p = new ProcessBuilder(cmd)
-                .directory(Kit.DIR.toFile())
+                .directory(Kit.dir().toFile())
                 .redirectErrorStream(true)
                 .start();
         proc = p;
@@ -337,7 +348,10 @@ final class Server {
 
     // ------------------------------------------------------------------ log parsing
 
+    // Paper prints "[12:00:00 INFO]: text"; Fabric/vanilla print "[12:00:00] [Server thread/INFO]: text"
+    // (sometimes "... /INFO] (Minecraft) text").
     static final Pattern LOG = Pattern.compile("^\\[(\\d{1,2}:\\d{2}:\\d{2})(?: [\\w-]+)? ?(\\w+)\\]: (.*)$");
+    static final Pattern LOG_VANILLA = Pattern.compile("^\\[(\\d{1,2}:\\d{2}:\\d{2})\\] \\[[^\\]]*?/(\\w+)\\](?:: | \\([^)]*\\) )(.*)$");
     static final Pattern ANSI = Pattern.compile("\u001B\\[[;\\d]*[A-Za-z]");
     static final Pattern DONE = Pattern.compile("^Done \\(([\\d.,]+)s\\)!");
     static final Pattern JOIN = Pattern.compile("^(\\S+) joined the game");
@@ -454,6 +468,10 @@ final class Server {
         if (line.isBlank()) return;
         Matcher m = LOG.matcher(line);
         boolean structured = m.matches();
+        if (!structured) {
+            m = LOG_VANILLA.matcher(line);
+            structured = m.matches();
+        }
         String level = structured ? m.group(2).toUpperCase(Locale.ROOT) : "";
         String msg = structured ? m.group(3).trim() : line.trim();
         if (msg.startsWith("System chat: ")) msg = msg.substring("System chat: ".length()); // newer Paper versions

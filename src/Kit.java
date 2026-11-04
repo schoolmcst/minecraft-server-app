@@ -14,16 +14,74 @@ final class Kit {
     private Kit() { }
 
     static final String APP_NAME = "Minecraft Server";
-    static final String VERSION = "3.3";
+    static final String VERSION = "4.0";
     static final String USER_AGENT =
             "home-minecraft-server-kit/" + VERSION + " (personal Paper+Geyser launcher; https://docs.papermc.io/misc/downloads-service/)";
 
-    static final Path DIR = Paths.get(System.getProperty("kit.dir", "")).toAbsolutePath();
-    static final Path PAPER_JAR = DIR.resolve("paper.jar");
-    static final Path VERSION_FILE = DIR.resolve("paper-version.txt");
-    static final Path PLUGINS = DIR.resolve("plugins");
-    static final Path BACKUPS = DIR.resolve("backups");
-    static final Path ONLINE = DIR.resolve("online");
+    // ------------------------------------------------------------------ folders
+    //
+    // HOME is where the app itself lives (launcher.jar, app/, online/, servers.json). Each server has its own folder;
+    // dir() is the server the app is looking at right now. Older installs kept the app inside the server folder,
+    // so HOME can also be a server folder.
+
+    static final Path HOME = findHome();
+    private static volatile Path current = initialServer();
+
+    private static Path findHome() {
+        String h = System.getProperty("kit.home");
+        if (h != null) return Paths.get(h).toAbsolutePath();
+        String d = System.getProperty("kit.dir");
+        if (d != null) return Paths.get(d).toAbsolutePath();
+        try {
+            Path jar = Paths.get(Kit.class.getProtectionDomain().getCodeSource().getLocation().toURI()).toAbsolutePath();
+            Path dir = Files.isDirectory(jar) ? jar : jar.getParent();
+            if (dir.getFileName() != null && dir.getFileName().toString().equals("app") && Files.exists(dir.getParent().resolve("launcher.jar")))
+                dir = dir.getParent();
+            return dir;
+        } catch (Exception e) {
+            return Paths.get("").toAbsolutePath();
+        }
+    }
+
+    private static Path initialServer() {
+        String d = System.getProperty("kit.dir");
+        return d != null ? Paths.get(d).toAbsolutePath() : null;
+    }
+
+    /** Where the installed app lives on Windows (%LOCALAPPDATA%\Programs\Minecraft Server). */
+    static Path installDir() {
+        String la = System.getenv("LOCALAPPDATA");
+        return la == null ? null : Paths.get(la, "Programs", "Minecraft Server");
+    }
+
+    /** True when the app's own folder is also a server (installs from before the Servers page). */
+    static boolean homeIsServer() { return looksLikeServer(HOME); }
+
+    static boolean looksLikeServer(Path p) {
+        return p != null && (Files.exists(p.resolve("server.properties")) || Files.exists(p.resolve("paper.jar"))
+                || Files.exists(p.resolve("fabric-server.jar")) || Files.exists(p.resolve("eula.txt")));
+    }
+
+    /** The server folder the app is working on (null when there are no servers yet). */
+    static Path dir() { return current; }
+
+    static boolean hasServer() { return current != null; }
+
+    static String type() { return get("server.type", Files.exists(dir().resolve("fabric-server.jar")) ? "fabric" : "paper"); }
+
+    static boolean isFabric() { return hasServer() && "fabric".equals(type()); }
+
+    static Path serverJar() { return dir().resolve(isFabric() ? "fabric-server.jar" : "paper.jar"); }
+
+    static Path versionFile() { return dir().resolve("paper-version.txt"); }
+
+    static Path plugins() { return dir().resolve("plugins"); }
+
+    static Path mods() { return dir().resolve("mods"); }
+
+    static Path backups() { return dir().resolve("backups"); }
+
+    static final Path ONLINE = HOME.resolve("online");
 
     static final String OS = System.getProperty("os.name", "").toLowerCase(Locale.ROOT);
     static final boolean WINDOWS = OS.contains("win");
@@ -34,29 +92,96 @@ final class Kit {
             .connectTimeout(Duration.ofSeconds(20))
             .build();
 
-    // ------------------------------------------------------------------ settings (launcher-settings.properties)
+    // ------------------------------------------------------------------ settings
+    //
+    // App-wide settings (online play, updates, the server list) live in HOME/app-settings.properties.
+    // Everything else belongs to one server and lives in <server>/launcher-settings.properties.
 
-    static final Path SETTINGS_FILE = DIR.resolve("launcher-settings.properties");
-    private static final Properties SETTINGS = new Properties();
+    private static final Properties APP = new Properties();
+    private static final Properties SERVER = new Properties();
+
+    static Path appSettingsFile() { return HOME.resolve(homeIsServer() ? "launcher-settings.properties" : "app-settings.properties"); }
+
+    static Path serverSettingsFile() { return dir() == null ? null : dir().resolve("launcher-settings.properties"); }
+
+    private static boolean appKey(String key) {
+        return key.startsWith("app.") || key.startsWith("online.") || key.startsWith("servers.") || key.startsWith("window.");
+    }
+
+    private static boolean shared() { return dir() != null && appSettingsFile().equals(serverSettingsFile()); }
 
     static synchronized void loadSettings() {
-        try (Reader r = Files.newBufferedReader(SETTINGS_FILE, StandardCharsets.UTF_8)) {
-            SETTINGS.load(r);
+        load(APP, appSettingsFile());
+        if (current == null) current = Servers.initial();
+        loadServerSettings();
+        if (current != null) Servers.adoptOnlineSetup(current);
+    }
+
+    private static void loadServerSettings() {
+        SERVER.clear();
+        Path f = serverSettingsFile();
+        if (f == null) return;
+        if (shared()) { SERVER.putAll(APP); return; }
+        load(SERVER, f);
+        // settings older versions kept with the server that are really app-wide (online play) move to the app
+        boolean moved = false;
+        for (String k : SERVER.stringPropertyNames()) {
+            if (appKey(k) && !APP.containsKey(k) && !k.startsWith("app.")) { APP.setProperty(k, SERVER.getProperty(k)); moved = true; }
+        }
+        if (moved) store(APP, appSettingsFile());
+    }
+
+    private static void load(Properties p, Path f) {
+        p.clear();
+        try (Reader r = Files.newBufferedReader(f, StandardCharsets.UTF_8)) {
+            p.load(r);
         } catch (IOException ignored) { }
     }
 
-    static synchronized String get(String key, String def) { return SETTINGS.getProperty(key, def); }
+    private static void store(Properties p, Path f) {
+        try {
+            Files.createDirectories(f.getParent());
+            try (Writer w = Files.newBufferedWriter(f, StandardCharsets.UTF_8)) {
+                p.store(w, "Minecraft Server app settings");
+            }
+        } catch (IOException ignored) { }
+    }
+
+    /** Points the app at another server folder. */
+    static synchronized void switchServer(Path dir) {
+        current = dir == null ? null : dir.toAbsolutePath();
+        loadServerSettings();
+        if (current != null) setApp("app.current", current.toString());
+    }
+
+    static synchronized String get(String key, String def) {
+        return (appKey(key) ? APP : SERVER).getProperty(key, def);
+    }
 
     static synchronized boolean getBool(String key, boolean def) {
-        String v = SETTINGS.getProperty(key);
+        String v = get(key, null);
         return v == null ? def : Boolean.parseBoolean(v);
     }
 
     static synchronized void set(String key, Object value) {
-        if (value == null) SETTINGS.remove(key); else SETTINGS.setProperty(key, String.valueOf(value));
-        try (Writer w = Files.newBufferedWriter(SETTINGS_FILE, StandardCharsets.UTF_8)) {
-            SETTINGS.store(w, "Minecraft Server app settings");
-        } catch (IOException ignored) { }
+        if (appKey(key) || shared()) {
+            setIn(APP, key, value);
+            store(APP, appSettingsFile());
+            if (shared()) setIn(SERVER, key, value);
+        } else {
+            if (dir() == null) return;
+            setIn(SERVER, key, value);
+            store(SERVER, serverSettingsFile());
+        }
+    }
+
+    private static void setApp(String key, Object value) {
+        setIn(APP, key, value);
+        store(APP, appSettingsFile());
+    }
+
+    private static void setIn(Properties p, String key, Object value) {
+        if (value == null) p.remove(key); else p.setProperty(key, String.valueOf(value));
     }
 
     static long totalRamMb() {
@@ -78,8 +203,14 @@ final class Kit {
     static String ram() { return get("ram", defaultRam()); }
 
     static String mcVersion() {
-        try { return Files.exists(VERSION_FILE) ? Files.readString(VERSION_FILE).trim() : ""; }
+        if (!hasServer()) return "";
+        try { return Files.exists(versionFile()) ? Files.readString(versionFile()).trim() : ""; }
         catch (IOException e) { return ""; }
+    }
+
+    static String serverName() {
+        if (!hasServer()) return "No server";
+        return get("server.name", dir().getFileName() == null ? "Server" : dir().getFileName().toString());
     }
 
     // ------------------------------------------------------------------ HTTP

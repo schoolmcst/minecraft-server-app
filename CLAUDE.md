@@ -9,7 +9,12 @@ A Java 21+ Swing desktop app (`src/*.java`, no dependencies) that runs a Paper s
 for online play. `Start Server.bat` downloads a Java 25 runtime into `runtime/` on first run; the owner's PC currently
 uses an installed Temurin JDK 25 and a desktop shortcut that runs `javaw -jar launcher.jar`.
 
-The owner's live server folder: `C:\Users\aiden\OneDrive\Desktop\MinecraftServer` (reach it through the device bridge).
+Since 4.0 the app is installed in `%LOCALAPPDATA%\Programs\Minecraft Server` (HOME: launcher.jar, app/, online/,
+servers.json, app-settings.properties) and manages several server folders. Each server folder keeps its own
+`launcher-settings.properties` (server.type paper|fabric, server.crossplay, mc.target, paper.build, xbox.*...).
+The owner's first server: `C:\Users\aiden\OneDrive\Desktop\minecraft stuff\Minecraft Server non mods`.
+Fabric servers use fabric-server.jar from meta.fabricmc.net, mods from Modrinth (Mods.java), Geyser/Floodgate as
+Fabric mods (config/Geyser-Fabric). Test overrides: -Dkit.home, -Dkit.dir, -Dkit.fabricmeta, -Dkit.modrinth.
 
 ## Ship an update (every installed app downloads it the next time it opens)
 1. Change `src/`, compile (`javac --release 21 -d /tmp/c src/*.java`) and test (UI tests run under `xvfb-run`;

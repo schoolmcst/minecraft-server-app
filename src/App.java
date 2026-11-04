@@ -35,6 +35,8 @@ final class App {
     private final PlayersPage players = new PlayersPage();
     private final ConsolePage console = new ConsolePage();
     private final OnlinePage onlinePage = new OnlinePage();
+    private final ServersPage serversPage = new ServersPage(this);
+    private final ModsPage modsPage = new ModsPage(this);
 
     static final DateTimeFormatter CLOCK = DateTimeFormatter.ofPattern("h:mm a", Locale.US);
 
@@ -84,7 +86,9 @@ final class App {
         top.add(barWrap, BorderLayout.SOUTH);
         main.add(top, BorderLayout.NORTH);
         pageHolder.setOpaque(false);
+        addPage("servers", Ui.scroll(serversPage.root));
         addPage("home", Ui.scroll(dashboard.root));
+        addPage("mods", Ui.scroll(modsPage.root));
         addPage("players", Ui.scroll(players.root));
         addPage("console", console.root);
         addPage("online", Ui.scroll(onlinePage.root));
@@ -97,8 +101,9 @@ final class App {
         frame.setSize(new Dimension(1120, 760));
         frame.setLocationRelativeTo(null);
 
-        show("home");
+        show(Kit.hasServer() ? "home" : "servers");
         refreshAll();
+        updateNavForServer();
         new Timer(1000, e -> { refreshHeader(); dashboard.tick(); }).start();
         frame.setVisible(true);
 
@@ -114,9 +119,18 @@ final class App {
         appTimer.setInitialDelay(90_000);
         appTimer.start();
 
-        server.event(Server.Kind.SYSTEM, Setup.softwareMissing()
+        if (Kit.hasServer()) server.event(Server.Kind.SYSTEM, Setup.softwareMissing()
                 ? "Welcome! Press Start server. The first start downloads the server (about 100 MB)."
                 : "Ready. Press Start server when you want to play.");
+
+        // installed in its own folder: give it a Start menu entry and a desktop icon (once)
+        if (Kit.WINDOWS && !Kit.homeIsServer() && !Kit.getBool("app.shortcuts", false)) {
+            Thread t = new Thread(() -> {
+                try { Setup.createDesktopShortcut(); Kit.set("app.shortcuts", true); } catch (Exception ignored) { }
+            }, "shortcuts");
+            t.setDaemon(true);
+            t.start();
+        }
     }
 
     // ------------------------------------------------------------------ app updates
@@ -189,7 +203,7 @@ final class App {
 
     /** The new copy of the app must be able to take the "already open" lock. */
     private static void releaseLockForRestart() {
-        try { Files.deleteIfExists(Kit.DIR.resolve(".app.restarting")); Files.createFile(Kit.DIR.resolve(".app.restarting")); }
+        try { Files.deleteIfExists(Kit.HOME.resolve(".app.restarting")); Files.createFile(Kit.HOME.resolve(".app.restarting")); }
         catch (Exception ignored) { }
     }
 
@@ -226,7 +240,6 @@ final class App {
         System.exit(0);
     }
 
-    static final Path XBOX_JAR = Kit.PLUGINS.resolve("Geyser-Spigot").resolve("extensions").resolve("MCXboxBroadcastExtension.jar");
 
     private JDialog xboxDialog;
 
@@ -293,11 +306,15 @@ final class App {
         brandText.add(Ui.label("Minecraft Server", Ui.bold(15), Ui.TEXT));
         brandText.add(Ui.label("Java + Bedrock", Ui.font(12), Ui.MUTED));
         JPanel brand = Ui.row(12, logo, brandText);
-        brand.setBorder(new EmptyBorder(0, 6, 22, 0));
+        brand.setBorder(new EmptyBorder(0, 6, 16, 0));
 
         Ui.Stack items = new Ui.Stack(4);
+        items.put(switcher);
+        items.put(Box.createVerticalStrut(8));
+        addNav(items, "servers", "Servers", "servers");
         addNav(items, "home", "Dashboard", "home");
         addNav(items, "players", "Players", "players");
+        addNav(items, "mods", "Mods", "mods");
         addNav(items, "console", "Console", "console");
         addNav(items, "online", "Play online", "online");
         addNav(items, "settings", "Settings", "settings");
@@ -309,7 +326,7 @@ final class App {
 
         Ui.Btn help = new Ui.Btn("Help & guide", Ui.Kind.SUBTLE).small()
                 .onClick(() -> {
-                    Path readme = Kit.DIR.resolve("README.md");
+                    Path readme = Kit.HOME.resolve("README.md");
                     try {
                         if (Kit.WINDOWS) { new ProcessBuilder("notepad.exe", readme.toString()).start(); return; }
                     } catch (Exception ignored) { }
@@ -326,6 +343,86 @@ final class App {
         side.add(top, BorderLayout.NORTH);
         side.add(bottom, BorderLayout.SOUTH);
         return side;
+    }
+
+    /** Shows which server is open; click to see them all. */
+    private final JComponent switcher = new JComponent() {
+        boolean hover;
+        {
+            setCursor(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR));
+            setToolTipText("Switch server");
+            addMouseListener(new MouseAdapter() {
+                @Override public void mouseEntered(MouseEvent e) { hover = true; repaint(); }
+                @Override public void mouseExited(MouseEvent e) { hover = false; repaint(); }
+                @Override public void mousePressed(MouseEvent e) { App.this.show("servers"); }
+            });
+        }
+
+        @Override public Dimension getPreferredSize() { return new Dimension(200, 58); }
+
+        @Override protected void paintComponent(Graphics g) {
+            Graphics2D g2 = (Graphics2D) g.create();
+            Ui.aa(g2);
+            g2.setColor(hover ? new Color(0x2A3038) : new Color(0x22272E));
+            g2.fillRoundRect(0, 0, getWidth(), getHeight(), 12, 12);
+            g2.setColor(Ui.LINE);
+            g2.drawRoundRect(0, 0, getWidth() - 1, getHeight() - 1, 12, 12);
+            g2.setFont(Ui.bold(11));
+            g2.setColor(Ui.FAINT);
+            g2.drawString("SERVER", 14, 20);
+            g2.setFont(Ui.bold(14));
+            g2.setColor(Ui.TEXT);
+            String name = shorten(Kit.serverName(), 20);
+            g2.drawString(name, 14, 40);
+            String type = !Kit.hasServer() ? "" : Kit.isFabric() ? "Modded" : "Survival";
+            g2.setFont(Ui.font(11.5f));
+            g2.setColor(Kit.isFabric() ? new Color(0xC9A0FF) : Ui.GREEN_HI);
+            g2.drawString(type, 14 + g2.getFontMetrics(Ui.bold(14)).stringWidth(name) + 8, 40);
+            int cx = getWidth() - 18, cy = getHeight() / 2;
+            g2.setStroke(new BasicStroke(1.8f, BasicStroke.CAP_ROUND, BasicStroke.JOIN_ROUND));
+            g2.setColor(Ui.MUTED);
+            g2.drawLine(cx - 3, cy - 5, cx + 1, cy - 1);
+            g2.drawLine(cx + 1, cy - 1, cx - 3, cy + 3);
+            g2.dispose();
+        }
+    };
+
+    /** Mods only make sense on a modded server; most pages need a server to exist. */
+    void updateNavForServer() {
+        boolean has = Kit.hasServer();
+        for (String id : List.of("home", "players", "console", "settings")) if (nav.get(id) != null) nav.get(id).setVisible(has);
+        if (nav.get("mods") != null) nav.get("mods").setVisible(has && Kit.isFabric());
+        switcher.repaint();
+        startBtn.setVisible(has);
+        pill.setVisible(has);
+    }
+
+    /** Opens another server. Only while the current one is stopped (one server runs at a time). */
+    void switchTo(Path dir) {
+        if (Objects.equals(dir, Kit.dir())) { refreshAll(); return; }
+        Server.State st = server.state();
+        if (st != Server.State.STOPPED && st != Server.State.CRASHED) {
+            Dialogs.info(frame, "Stop the server first", "Only one server runs at a time. Stop " + Kit.serverName()
+                    + ", then switch.");
+            return;
+        }
+        Kit.switchServer(dir);
+        server.resetForSwitch();
+        console.clear();
+        dashboard.clearEvents();
+        updateNavForServer();
+        refreshAll();
+        players.refresh();
+        settings.refresh();
+        modsPage.refresh();
+        serversPage.refresh();
+        if (Kit.hasServer()) {
+            server.event(Server.Kind.SYSTEM, "Opened " + Kit.serverName() + "."
+                    + (Setup.softwareMissing() ? " Press Start server: the first start downloads what it needs." : ""));
+            show("home");
+        } else {
+            show("servers");
+        }
     }
 
     private void addNav(Ui.Stack items, String id, String text, String icon) {
@@ -397,7 +494,9 @@ final class App {
             SwingUtilities.invokeLater(() -> sp.getVerticalScrollBar().setValue(0));
         for (var e : nav.entrySet()) { e.getValue().selected = e.getKey().equals(id); e.getValue().repaint(); }
         switch (id) {
-            case "home" -> { pageTitle.setText("Dashboard"); pageSub.setText("Your server at a glance"); }
+            case "servers" -> { pageTitle.setText("Servers"); pageSub.setText("Make new servers and switch between them"); serversPage.refresh(); }
+            case "mods" -> { pageTitle.setText("Mods"); pageSub.setText("Fabric mods for " + Kit.serverName()); modsPage.refresh(); }
+            case "home" -> { pageTitle.setText(Kit.serverName()); pageSub.setText("Your server at a glance"); }
             case "players" -> { pageTitle.setText("Players"); pageSub.setText("Who can join, who's online, and who's an admin"); players.refresh(); }
             case "console" -> { pageTitle.setText("Console"); pageSub.setText("What's happening on the server, and a place to type commands"); console.focus(); }
             case "online" -> { pageTitle.setText("Play online"); pageSub.setText("Let friends join from anywhere, for free"); }
@@ -461,10 +560,25 @@ final class App {
         }
     }
 
+    /** "Paper build 241 + Geyser", or "Fabric + 3 mods" for a modded server. */
+    static String softwareLine(boolean longForm) {
+        String bedrock = Setup.crossplay() ? (longForm ? "   ·   Geyser + Floodgate" : " + Geyser") : "";
+        if (Kit.isFabric()) {
+            long mods = Mods.installed().stream().filter(m -> !m.file().getFileName().toString().matches("(?i)(geyser|floodgate).*")).count();
+            return "Fabric" + (longForm && Kit.get("fabric.loader", null) != null ? " " + Kit.get("fabric.loader", null) : "")
+                    + " + " + mods + (mods == 1 ? " mod" : " mods") + bedrock;
+        }
+        String build = Kit.get("paper.build", null);
+        return "Paper" + (build != null ? " build " + build : "") + bedrock;
+    }
+
     static String shorten(String s, int n) { return s.length() <= n ? s : s.substring(0, n - 3) + "..."; }
 
     void refreshAll() {
         refreshHeader();
+        switcher.repaint();
+        if (current.equals("home")) pageTitle.setText(Kit.serverName());
+        if (!Kit.hasServer()) { onlinePage.refresh(); return; }
         dashboard.refresh();
         players.refreshState();
         console.refreshState();
@@ -536,7 +650,7 @@ final class App {
             Ui.Stack ws = new Ui.Stack(6);
             ws.put(Ui.label("Welcome to your server", Ui.bold(16), Ui.TEXT));
             ws.put(wt);
-            if (Kit.WINDOWS && !Files.exists(Kit.DIR.resolve("app-icon.ico")))
+            if (Kit.WINDOWS && !Files.exists(Kit.HOME.resolve("app-icon.ico")))
                 ws.put(Ui.row(10, new Ui.Btn("Add a desktop shortcut", Ui.Kind.SECONDARY).small().onClick(settings::shortcut),
                         Ui.label("Opens this app with one click, no black window.", Ui.font(12.5f), Ui.MUTED), Ui.glue()));
             welcome.add(ws);
@@ -585,6 +699,7 @@ final class App {
         }
 
         void refresh() {
+            if (!Kit.hasServer()) return;
             welcome.setVisible(Setup.softwareMissing() || !Setup.eulaAccepted());
             Server.State st = server.state();
             switch (st) {
@@ -604,7 +719,7 @@ final class App {
             String v = Kit.mcVersion();
             versionBig.setText(v.isEmpty() ? "Not installed" : v);
             String build = Kit.get("paper.build", null);
-            versionSmall.setText(v.isEmpty() ? "Downloads on first start" : "Paper" + (build != null ? " build " + build : "") + " + Geyser");
+            versionSmall.setText(v.isEmpty() ? "Downloads on first start" : softwareLine(false));
             rebuildJoin();
         }
 
@@ -737,6 +852,13 @@ final class App {
             return g;
         }
 
+        void clearEvents() {
+            recent.clear();
+            feed.removeAll();
+            feed.revalidate();
+            feed.repaint();
+        }
+
         void addEvent(Server.Event e) {
             if (e.text().startsWith("    ")) return; // crash detail lines live in the console
             recent.addLast(e);
@@ -826,10 +948,13 @@ final class App {
         }
 
         void refreshState() {
+            if (!Kit.hasServer()) return;
             boolean on = server.isRunning();
             add.setEnabled(on);
             name.setEnabled(on);
             edition.setEnabled(on);
+            edition.setVisible(Setup.crossplay());
+            if (!Setup.crossplay()) edition.setValue("Java edition");
             offlineNote.setVisible(!on);
             String r = on ? server.lastRejected : null;
             rejected.removeAll();
@@ -864,6 +989,7 @@ final class App {
         }
 
         void refresh() {
+            if (!Kit.hasServer()) return;
             // Everyone is matched by their player ID, so Xbox/Bedrock players show their gamertag whatever the
             // server calls them (with or without Floodgate's name prefix, or "unknown" when added by ID).
             Map<String, String> cacheName = new HashMap<>(); // uuid -> name the server knows them by
@@ -965,7 +1091,8 @@ final class App {
 
     static List<Map<?, ?>> readJson(String file) {
         try {
-            Path p = Kit.DIR.resolve(file);
+            if (!Kit.hasServer()) return List.of();
+            Path p = Kit.dir().resolve(file);
             if (!Files.exists(p)) return List.of();
             List<Map<?, ?>> out = new ArrayList<>();
             for (Object o : (List<?>) Kit.Json.parse(Files.readString(p))) if (o instanceof Map<?, ?> m) out.add(m);
@@ -1073,6 +1200,11 @@ final class App {
 
         void focus() { SwingUtilities.invokeLater(input::requestFocusInWindow); }
 
+        void clear() {
+            events.setText("");
+            rawArea.setText("");
+        }
+
         private void sendInput() {
             String t = input.getText().trim();
             if (t.isEmpty()) return;
@@ -1087,6 +1219,7 @@ final class App {
         }
 
         void refreshState() {
+            if (!Kit.hasServer()) return;
             boolean on = server.isRunning();
             send.setEnabled(on);
             input.placeholder = on ? "Type a command, for example:  time set day" : "Start the server to type commands";
@@ -1155,7 +1288,7 @@ final class App {
             String k = online.state() + "|" + online.message() + "|" + online.live() + "|" + online.autoShare() + "|"
                     + Online.javaAddress() + "|" + Online.bedrockHost() + "|" + online.bedrockProblem() + "|"
                     + server.state() + "|" + online.isWorking() + "|" + server.xboxCode + "|" + Kit.get("xbox.gamertag", "")
-                    + "|" + Files.exists(XBOX_JAR) + "|" + xboxBusy;
+                    + "|" + (Kit.hasServer() && Files.exists(Setup.xboxJar())) + "|" + xboxBusy;
             if (k.equals(key)) return;
             key = k;
             body.removeAll();
@@ -1168,7 +1301,7 @@ final class App {
                 case MANUAL -> manual();
                 case ERROR -> error();
             }
-            body.put(xboxCard());
+            if (Kit.hasServer()) body.put(xboxCard());
             body.revalidate();
             body.repaint();
         }
@@ -1217,8 +1350,11 @@ final class App {
             s.put(Ui.cardTitle("Xbox, PlayStation and Switch players"));
             String tag = Kit.get("xbox.gamertag", null);
             String code = server.xboxCode;
-            boolean installed = Files.exists(XBOX_JAR);
-            if (!installed) {
+            boolean installed = (Kit.hasServer() && Files.exists(Setup.xboxJar()));
+            if (!Setup.crossplay()) {
+                s.put(Ui.para("Bedrock and Xbox players are turned off for " + Kit.serverName() + ", so only Java players "
+                        + "can join it.", Ui.font(13.5f), Ui.MUTED));
+            } else if (!installed) {
                 s.put(Ui.para("Consoles can't type in a server address. The free MCXboxBroadcast add-on fixes that: it signs in "
                         + "to an Xbox account and your server shows up in console friends' Friends tab. Use a spare Microsoft "
                         + "account; the add-on's makers warn the account could be banned.", Ui.font(13.5f), Ui.MUTED));
@@ -1261,10 +1397,10 @@ final class App {
             Thread t = new Thread(() -> {
                 String err = null;
                 try {
-                    Files.createDirectories(XBOX_JAR.getParent());
+                    Files.createDirectories(Setup.xboxJar().getParent());
                     Path tmp = Kit.download("https://github.com/MCXboxBroadcast/Broadcaster/releases/latest/download/MCXboxBroadcastExtension.jar",
-                            XBOX_JAR, "Downloading console support", null);
-                    Files.move(tmp, XBOX_JAR, java.nio.file.StandardCopyOption.REPLACE_EXISTING);
+                            Setup.xboxJar(), "Downloading console support", null);
+                    Files.move(tmp, Setup.xboxJar(), java.nio.file.StandardCopyOption.REPLACE_EXISTING);
                 } catch (Exception e) {
                     err = Kit.describe(e);
                 }
@@ -1525,8 +1661,8 @@ final class App {
                     Ui.font(13.5f), Ui.MUTED));
             bs.put(Ui.row(10, backupHolder, restore, backupNow,
                     new Ui.Btn("Open folder", Ui.Kind.GHOST).small().onClick(() -> {
-                        try { Files.createDirectories(Kit.BACKUPS); } catch (Exception ignored) { }
-                        Kit.open(Kit.BACKUPS);
+                        try { Files.createDirectories(Kit.backups()); } catch (Exception ignored) { }
+                        Kit.open(Kit.backups());
                     }), Ui.glue()));
             bs.put(backupNote);
             back.add(bs);
@@ -1572,10 +1708,10 @@ final class App {
             fs.put(Ui.cardTitle("Shortcuts and files"));
             List<Component> fb = new ArrayList<>();
             if (Kit.WINDOWS) fb.add(new Ui.Btn("Add desktop shortcut", Ui.Kind.SECONDARY).onClick(this::shortcut));
-            fb.add(new Ui.Btn("Open server folder", Ui.Kind.SECONDARY).onClick(() -> Kit.open(Kit.DIR)));
+            fb.add(new Ui.Btn("Open server folder", Ui.Kind.SECONDARY).onClick(() -> Kit.open(Kit.dir())));
             fb.add(new Ui.Btn("Open full log", Ui.Kind.SECONDARY).onClick(() -> {
-                Path log = Kit.DIR.resolve("logs").resolve("latest.log");
-                Kit.open(Files.exists(log) ? log : Kit.DIR);
+                Path log = Kit.dir().resolve("logs").resolve("latest.log");
+                Kit.open(Files.exists(log) ? log : Kit.dir());
             }));
             fb.add(Ui.glue());
             fs.put(Ui.row(10, fb.toArray(new Component[0])));
@@ -1604,6 +1740,7 @@ final class App {
         }
 
         void refresh() {
+            if (!Kit.hasServer()) return;
             Map<String, String> p = Setup.readProps();
             motd.setText(p.getOrDefault("motd", "A Minecraft Server"));
             gamemode.setValue(cap(p.getOrDefault("gamemode", "survival")));
@@ -1620,10 +1757,11 @@ final class App {
         }
 
         void refreshState() {
+            if (!Kit.hasServer()) return;
             String v = Kit.mcVersion();
             String build = Kit.get("paper.build", null);
             software.setText(v.isEmpty() ? "Not downloaded yet (happens on the first start)."
-                    : "Minecraft " + v + "   ·   Paper" + (build != null ? " build " + build : "") + "   ·   Geyser + Floodgate");
+                    : "Minecraft " + v + "   ·   " + softwareLine(true));
             boolean off = server.state() == Server.State.STOPPED || server.state() == Server.State.CRASHED;
             update.setEnabled(off);
             String newer = Setup.newerMinecraft();
