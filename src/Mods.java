@@ -106,6 +106,7 @@ final class Mods {
                 throw new IOException(name + " was damaged on the way. Please try again.");
             }
             Files.move(tmp, target, StandardCopyOption.REPLACE_EXISTING);
+            rejectClientOnly(target);
             Kit.set("mod." + name, projectId);
             added.add(describe(target).name());
         }
@@ -116,12 +117,12 @@ final class Mods {
         }
     }
 
-    private static boolean alreadyHave(String projectId) {
+    static boolean alreadyHave(String projectId) {
         for (Installed i : installed()) if (projectId.equals(Kit.get("mod." + i.file().getFileName(), ""))) return true;
         return false;
     }
 
-    private static void removeOtherVersions(String projectId, Path keep) throws IOException {
+    static void removeOtherVersions(String projectId, Path keep) throws IOException {
         if (projectId == null) return;
         for (Installed i : installed()) {
             if (i.file().equals(keep)) continue;
@@ -129,6 +130,21 @@ final class Mods {
                 Files.deleteIfExists(i.file());
                 Kit.set("mod." + i.file().getFileName(), null);
             }
+        }
+    }
+
+    /** Mods marked "client" only run on players' computers; a server ignores them, so don't keep them. */
+    static void rejectClientOnly(Path jar) throws IOException {
+        String env = null;
+        try (ZipFile z = new ZipFile(jar.toFile())) {
+            var e = z.getEntry("fabric.mod.json");
+            if (e != null) env = Kit.Json.str(Kit.Json.parse(new String(z.getInputStream(e).readAllBytes(), StandardCharsets.UTF_8).trim()), "environment");
+        } catch (Exception ignored) { }
+        if ("client".equals(env)) {
+            String name = describe(jar).name();
+            Files.deleteIfExists(jar);
+            throw new IOException(name + " only runs on players' own computers, not on a server. "
+                    + "Players can add it to their own Minecraft instead");
         }
     }
 

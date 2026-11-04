@@ -13,8 +13,11 @@ Since 4.0 the app is installed in `%LOCALAPPDATA%\Programs\Minecraft Server` (HO
 servers.json, app-settings.properties) and manages several server folders. Each server folder keeps its own
 `launcher-settings.properties` (server.type paper|fabric, server.crossplay, mc.target, paper.build, xbox.*...).
 The owner's first server: `C:\Users\aiden\OneDrive\Desktop\minecraft stuff\Minecraft Server non mods`.
-Fabric servers use fabric-server.jar from meta.fabricmc.net, mods from Modrinth (Mods.java), Geyser/Floodgate as
-Fabric mods (config/Geyser-Fabric). Test overrides: -Dkit.home, -Dkit.dir, -Dkit.fabricmeta, -Dkit.modrinth.
+Fabric servers use fabric-server.jar from meta.fabricmc.net, mods from Modrinth or CurseForge (ModSource.java;
+CurseForge needs the owner's API key, saved as app.curseforge.key; ModsPage.java shows categories, cards, details with
+pictures). Modrinth pictures are WebP: Images.java downloads the TwelveMonkeys reader from Maven Central into <app>/lib
+(SHA-1 pinned). Geyser/Floodgate run as
+Fabric mods (config/Geyser-Fabric). Test overrides: -Dkit.home, -Dkit.dir, -Dkit.fabricmeta, -Dkit.modrinth, -Dkit.curseforge, -Dkit.maven.
 
 ## Ship an update (every installed app downloads it the next time it opens)
 1. Change `src/`, compile (`javac --release 21 -d /tmp/c src/*.java`) and test (UI tests run under `xvfb-run`;

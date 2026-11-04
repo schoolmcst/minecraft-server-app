@@ -14,7 +14,7 @@ final class Kit {
     private Kit() { }
 
     static final String APP_NAME = "Minecraft Server";
-    static final String VERSION = "4.1";
+    static final String VERSION = "4.2";
     static final String USER_AGENT =
             "home-minecraft-server-kit/" + VERSION + " (personal Paper+Geyser launcher; https://docs.papermc.io/misc/downloads-service/)";
 
@@ -223,6 +223,22 @@ final class Kit {
 
     static String getString(String url) throws IOException, InterruptedException {
         HttpResponse<String> r = HTTP.send(request(url).build(), HttpResponse.BodyHandlers.ofString());
+        if (r.statusCode() != 200) throw new IOException("HTTP " + r.statusCode() + " from " + host(url));
+        return r.body();
+    }
+
+    /** GET with extra headers (name, value, name, value...). */
+    static String getString(String url, String... headers) throws IOException, InterruptedException {
+        HttpRequest.Builder b = request(url).timeout(Duration.ofSeconds(30));
+        for (int i = 0; i + 1 < headers.length; i += 2) b.header(headers[i], headers[i + 1]);
+        HttpResponse<String> r = HTTP.send(b.build(), HttpResponse.BodyHandlers.ofString());
+        if (r.statusCode() == 401 || r.statusCode() == 403) throw new IOException("the site said the key isn't valid (HTTP " + r.statusCode() + ")");
+        if (r.statusCode() != 200) throw new IOException("HTTP " + r.statusCode() + " from " + host(url));
+        return r.body();
+    }
+
+    static byte[] getBytes(String url) throws IOException, InterruptedException {
+        HttpResponse<byte[]> r = HTTP.send(request(url).timeout(Duration.ofSeconds(30)).build(), HttpResponse.BodyHandlers.ofByteArray());
         if (r.statusCode() != 200) throw new IOException("HTTP " + r.statusCode() + " from " + host(url));
         return r.body();
     }

@@ -1,9 +1,10 @@
 {
-  "version": "4.1",
+  "version": "4.2",
   "file": "app.jar",
-  "sha256": "2e074d15ef978754f7c582c0e31788c43b658ade200f5d2b7c8ce8e0517253f4",
+  "sha256": "5b03aae8d72e13f2ad36b0ff6eaf6f4942d11bf507606c5b670ba3274b73b5ba",
   "minJava": 21,
   "notes": [
-    "Fixed the desktop and Start menu icons so they open the app again"
+    "Mods page: discover mods by category, with pictures and descriptions",
+    "You can now get mods from CurseForge too (it asks for a free key once)"
   ]
 }

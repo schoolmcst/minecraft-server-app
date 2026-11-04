@@ -28,7 +28,10 @@ The **Servers** page lists your servers. Click the server name at the top of the
 
 ## Modded servers
 
-Open **Mods** in the sidebar to search Modrinth and install Fabric mods. Mods they need are added automatically.
+Open **Mods** in the sidebar. **Discover** shows mods by category (Adventure, Mobs, World generation, ...), or search
+by name. Click a mod to see its pictures and description, then **Install**. Mods they need are added automatically.
+Mods come from **Modrinth** by default; switch to **CurseForge** at the top right (it asks for a free key from
+console.curseforge.com once). Some CurseForge mods can only be downloaded on the CurseForge website.
 Mods tagged **Players need it too** must also be installed by each Java player (same version). Bedrock and Xbox
 players are off by default on modded servers because they can't see most modded things.
 
