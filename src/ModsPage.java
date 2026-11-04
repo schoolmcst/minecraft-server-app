@@ -538,7 +538,7 @@ final class ModsPage {
     }
 
     private void saveKey(String k, Ui.Btn save, JTextArea msg) {
-        String key = k.trim();
+        String key = ModSource.CurseForge.clean(k);
         if (key.isEmpty()) { msg.setText("Paste the key first."); return; }
         save.setEnabled(false);
         msg.setForeground(Ui.MUTED);
@@ -556,7 +556,7 @@ final class ModsPage {
                 SwingUtilities.invokeLater(() -> {
                     save.setEnabled(true);
                     msg.setForeground(Ui.RED_HI);
-                    msg.setText("That key didn't work: " + Kit.describe(e));
+                    msg.setText(Kit.describe(e));
                 });
             }
         }, "cf-key").start();

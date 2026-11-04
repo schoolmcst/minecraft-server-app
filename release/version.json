@@ -1,10 +1,9 @@
 {
-  "version": "4.2",
+  "version": "4.3",
   "file": "app.jar",
-  "sha256": "5b03aae8d72e13f2ad36b0ff6eaf6f4942d11bf507606c5b670ba3274b73b5ba",
+  "sha256": "112138d104f7f982aef9f2debee5518b9478b6738b2ae18013fd2802031db108",
   "minJava": 21,
   "notes": [
-    "Mods page: discover mods by category, with pictures and descriptions",
-    "You can now get mods from CurseForge too (it asks for a free key once)"
+    "CurseForge keys: pasted keys are cleaned up, and the app explains when CurseForge turns a key down"
   ]
 }

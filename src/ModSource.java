@@ -137,7 +137,10 @@ interface ModSource {
         static final int MINECRAFT = 432, MODS = 6, FABRIC = 4;
         private LinkedHashMap<String, String> cats;
 
-        static String key() { return Kit.get("app.curseforge.key", "").trim(); }
+        static String key() { return clean(Kit.get("app.curseforge.key", "")); }
+
+        /** Removes spaces, line breaks and invisible characters that sneak in when copying from a web page. */
+        static String clean(String k) { return k == null ? "" : k.replaceAll("[\\s\\p{Cf}\\u00A0\"'`]", ""); }
 
         static boolean ready() { return !key().isEmpty(); }
 
@@ -148,7 +151,14 @@ interface ModSource {
 
         /** Checks a key by asking for the Minecraft categories with it. */
         static void test(String key) throws IOException, InterruptedException {
-            Kit.getString(API + "/v1/categories?gameId=" + MINECRAFT + "&classId=" + MODS, "x-api-key", key.trim(), "Accept", "application/json");
+            try {
+                Kit.getString(API + "/v1/games/" + MINECRAFT, "x-api-key", clean(key), "Accept", "application/json");
+            } catch (IOException e) {
+                if (String.valueOf(e.getMessage()).contains("403") || String.valueOf(e.getMessage()).contains("401"))
+                    throw new IOException("CurseForge said no to this key. Check you copied all of it (it starts with $2a$10$). "
+                            + "A brand-new key can take a while to start working; if it still fails later, make a new key in the console");
+                throw e;
+            }
         }
 
         public String name() { return "CurseForge"; }
