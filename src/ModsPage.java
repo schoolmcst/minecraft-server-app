@@ -208,6 +208,7 @@ final class ModsPage {
                     offset = off + p.hits().size();
                     total = p.total();
                     renderGrid();
+                    if (fresh) scrollTop();
                 });
             } catch (Exception e) {
                 SwingUtilities.invokeLater(() -> {

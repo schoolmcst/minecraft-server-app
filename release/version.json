@@ -1,9 +1,9 @@
 {
-  "version": "4.5",
+  "version": "4.6",
   "file": "app.jar",
-  "sha256": "9e73c3ec88fa6dc36aeeb64fe335abebed55043a2cad7336d14d15a260a03478",
+  "sha256": "d847d30bdfed0d1ce566be96f5caf22c1ef51896d085dc9cfcb4bf337a76c1cf",
   "minJava": 21,
   "notes": [
-    "Fixed the Mods page showing up blank on smaller windows"
+    "The Mods page starts at the top of the list"
   ]
 }
