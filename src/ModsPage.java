@@ -672,6 +672,7 @@ final class ModsPage {
                 }
                 h += rowH;
                 w = Math.max(w, x);
+                w = Math.max(0, Math.min(w - getHgap(), max)); // no gap after the last item, never wider than the space
                 return new Dimension(w + in.left + in.right, h + in.top + in.bottom);
             }
         }
@@ -716,11 +717,12 @@ final class ModsPage {
                     row = Math.max(row, heightAt(cs[i], cw));
                     if (i % cols == cols - 1 || i == cs.length - 1) { h += row; rows++; row = 0; }
                 }
-                return new Dimension(min, h + Math.max(0, rows - 1) * gap);
+                return new Dimension(Math.min(min, Math.max(1, t.getWidth())), h + Math.max(0, rows - 1) * gap);
             }
         }
 
-        @Override public Dimension minimumLayoutSize(Container t) { return new Dimension(min, 0); }
+        // the same as preferred, so a squeezed page never hides the cards
+        @Override public Dimension minimumLayoutSize(Container t) { return preferredLayoutSize(t); }
 
         private int colWidth(Container t, int cols) {
             int w = t.getWidth() > 0 ? t.getWidth() : 900;

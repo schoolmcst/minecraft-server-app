@@ -1,10 +1,9 @@
 {
-  "version": "4.4",
+  "version": "4.5",
   "file": "app.jar",
-  "sha256": "d2d20759553ae11f0651685b3df4853c59400d1c29b9ec3c5bfd77a2abdd3ac5",
+  "sha256": "9e73c3ec88fa6dc36aeeb64fe335abebed55043a2cad7336d14d15a260a03478",
   "minJava": 21,
   "notes": [
-    "Mods: library mods are hidden while browsing (they're added by themselves when needed)",
-    "The app now keeps a problem log, so problems are easier to fix"
+    "Fixed the Mods page showing up blank on smaller windows"
   ]
 }
