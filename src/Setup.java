@@ -574,7 +574,10 @@ final class Setup {
                 + "$d=[Environment]::GetFolderPath('Desktop');" + one
                 + "$d=[Environment]::GetFolderPath('Programs');" + one
                 + "Write-Output ([Environment]::GetFolderPath('Desktop'))";
-        Process p = new ProcessBuilder("powershell", "-NoProfile", "-NonInteractive", "-Command", ps)
+        // -EncodedCommand: Windows command-line quoting drops the double quotes around the launcher.jar path
+        // (it has a space in it), which made a shortcut that couldn't find the app
+        String encoded = Base64.getEncoder().encodeToString(ps.getBytes(StandardCharsets.UTF_16LE));
+        Process p = new ProcessBuilder("powershell", "-NoProfile", "-NonInteractive", "-EncodedCommand", encoded)
                 .redirectErrorStream(true).start();
         String out = new String(p.getInputStream().readAllBytes(), StandardCharsets.UTF_8).trim();
         if (p.waitFor() != 0) throw new IOException(out.isEmpty() ? "PowerShell failed" : out);

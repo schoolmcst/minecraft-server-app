@@ -124,9 +124,9 @@ final class App {
                 : "Ready. Press Start server when you want to play.");
 
         // installed in its own folder: give it a Start menu entry and a desktop icon (once)
-        if (Kit.WINDOWS && !Kit.homeIsServer() && !Kit.getBool("app.shortcuts", false)) {
+        if (Kit.WINDOWS && !Kit.homeIsServer() && !Kit.getBool("app.shortcuts2", false)) {
             Thread t = new Thread(() -> {
-                try { Setup.createDesktopShortcut(); Kit.set("app.shortcuts", true); } catch (Exception ignored) { }
+                try { Setup.createDesktopShortcut(); Kit.set("app.shortcuts2", true); } catch (Exception ignored) { }
             }, "shortcuts");
             t.setDaemon(true);
             t.start();

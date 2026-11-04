@@ -1,11 +1,9 @@
 {
-  "version": "4.0",
+  "version": "4.1",
   "file": "app.jar",
-  "sha256": "63a9a716bf472b2ca20e5c32772994b85e30f911e49844e5b98f5c82833c7127",
+  "sha256": "2e074d15ef978754f7c582c0e31788c43b658ade200f5d2b7c8ce8e0517253f4",
   "minJava": 21,
   "notes": [
-    "The app installs like a normal program, with a Start menu entry",
-    "New Servers page: make survival or modded servers and switch between them",
-    "Mods page for modded servers, with Modrinth search"
+    "Fixed the desktop and Start menu icons so they open the app again"
   ]
 }
