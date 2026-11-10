@@ -29,6 +29,47 @@ final class AntiCheat {
 
     static boolean alerts() { return Kit.getBool("anticheat.alerts", true); }
 
+    /** XrayWatch, the app's own plugin: catches X-ray users by how they mine (see plugin/src). */
+    static boolean xrayDetect() { return applies() && Kit.getBool("anticheat.xray.detect", true); }
+
+    static boolean xrayAdmins() { return Kit.getBool("anticheat.xray.admins", true); }
+
+    /** Paper's feature-seeds: ores in newly generated areas no longer match the world seed, so seed-based ore finders miss. */
+    static boolean shuffleOres() { return applies() && Kit.getBool("anticheat.xray.seeds", true); }
+
+    static Path xrayWatchJar() { return Kit.plugins().resolve("XrayWatch.jar"); }
+
+    static Path xrayWatchDir() { return Kit.plugins().resolve("XrayWatch"); }
+
+    /** Installs, updates or removes XrayWatch and writes its settings. Returns a feed line or null. */
+    static String syncXrayWatch() {
+        try {
+            if (!xrayDetect()) {
+                if (Files.deleteIfExists(xrayWatchJar())) return "X-ray detection is off.";
+                return null;
+            }
+            byte[] jar;
+            try (var in = AntiCheat.class.getResourceAsStream("/xraywatch.jar")) {
+                if (in == null) return null; // a development build without the plugin inside
+                jar = in.readAllBytes();
+            }
+            boolean fresh = !Files.exists(xrayWatchJar());
+            if (fresh || !Arrays.equals(jar, Files.readAllBytes(xrayWatchJar()))) {
+                Files.createDirectories(Kit.plugins());
+                Path tmp = xrayWatchJar().resolveSibling("XrayWatch.jar.part");
+                Files.write(tmp, jar);
+                Files.move(tmp, xrayWatchJar(), StandardCopyOption.REPLACE_EXISTING);
+            }
+            Files.createDirectories(xrayWatchDir());
+            Files.writeString(xrayWatchDir().resolve("config.properties"),
+                    "# Written by the Minecraft Server app (Rules page). Changes here are replaced on the next start.\n"
+                            + "notify-admins=" + xrayAdmins() + "\n", StandardCharsets.UTF_8);
+            return fresh ? "X-ray detection is on: the server now watches how players mine." : null;
+        } catch (IOException e) {
+            return "Couldn't set up X-ray detection: " + Kit.describe(e);
+        }
+    }
+
     static List<Path> grimJars(Path dir) {
         if (!Files.isDirectory(dir)) return List.of();
         try (Stream<Path> s = Files.list(dir)) {
@@ -72,6 +113,8 @@ final class AntiCheat {
             said = "Couldn't set up the anti-cheat: " + Kit.describe(e);
         }
         configureXray();
+        String xw = syncXrayWatch();
+        if (xw != null) said = said == null ? xw : said + " " + xw;
         return said;
     }
 
@@ -123,7 +166,8 @@ final class AntiCheat {
     /** Sets Paper's anti-X-ray to match the switches: the world defaults (Overworld) and the Nether's own file. */
     static void configureXray() {
         String mode = xrayStrong() ? "2" : "1";
-        editYaml(paperWorldDefaults(), y -> withAntiXray(withAntiXray(y, "enabled", String.valueOf(xray())), "engine-mode", mode));
+        editYaml(paperWorldDefaults(), y -> withSection(withAntiXray(withAntiXray(y, "enabled", String.valueOf(xray())), "engine-mode", mode),
+                "feature-seeds", "generate-random-seeds-for-all", String.valueOf(shuffleOres())));
         for (Path f : netherConfigs()) {
             editYaml(f, y -> {
                 if (!y.matches("(?s).*(^|\n)anticheat:\\s*\n.*")) {
@@ -201,6 +245,25 @@ final class AntiCheat {
         return yaml;
     }
 
+    /** Rewrites "key: value" inside a top-level section ("section:" at the start of a line). */
+    static String withSection(String yaml, String section, String key, String value) {
+        String[] lines = yaml.split("\n", -1);
+        boolean in = false;
+        for (int i = 0; i < lines.length; i++) {
+            String l = lines[i];
+            if (l.matches("^" + Pattern.quote(section) + ":\\s*$")) { in = true; continue; }
+            if (in && !l.isBlank() && indent(l) == 0) break;
+            if (in) {
+                Matcher m = Pattern.compile("^(\\s+)" + Pattern.quote(key) + ":\\s*(\\S+)\\s*$").matcher(l);
+                if (m.matches()) {
+                    lines[i] = m.group(1) + key + ": " + value;
+                    return String.join("\n", lines);
+                }
+            }
+        }
+        return yaml;
+    }
+
     private static int indent(String l) {
         int i = 0;
         while (i < l.length() && l.charAt(i) == ' ') i++;
@@ -257,7 +320,12 @@ final class AntiCheat {
             if (t != null && now - t < 60_000) return null;
             lastCalledOut.put(who.toLowerCase(Locale.ROOT), now);
         }
-        String text = "\u26A0 " + calloutMessage().replace("{player}", who).replace("{cheat}", shortName(m.group(2).trim()));
+        return calloutFor(who, shortName(m.group(2).trim()));
+    }
+
+    /** The red chat message for a caught player. */
+    static String calloutFor(String who, String cheat) {
+        String text = "\u26A0 " + calloutMessage().replace("{player}", who).replace("{cheat}", cheat);
         return "tellraw @a {\"text\":\"" + jsonEscape(text) + "\",\"color\":\"red\",\"bold\":true}";
     }
 
@@ -282,6 +350,29 @@ final class AntiCheat {
         if (c.contains("velocity") || c.contains("knockback")) return "no knockback";
         if (c.contains("scaffold") || c.contains("place") || c.contains("fastbreak")) return "fast building";
         return "hacks";
+    }
+
+    // ------------------------------------------------------------------ XrayWatch flags
+
+    /** "[XrayWatch] FLAG likely player=Steve score=93 veins=8 targeted=6 weighted=8.0 blocks=180 tunnel=22 minutes=30 world=world x=1 y=-58 z=2 ore=..." */
+    static final Pattern XRAY_FLAG = Pattern.compile("^\\[XrayWatch\\] FLAG (likely|suspicious) player=\\.?(\\S+) score=(\\d+) veins=(\\d+) targeted=(\\d+)"
+            + ".*? blocks=(\\d+).*? minutes=(\\d+)(?: world=(\\S+) x=(-?\\d+) y=(-?\\d+) z=(-?\\d+))?");
+
+    record XrayFlag(boolean likely, String player, int score, int veins, int targeted, int blocks, int minutes, String where) {
+        String feedLine() {
+            return player + (likely ? " is very likely using X-ray" : " might be using X-ray") + ": in the last " + minutes
+                    + " minutes they dug straight to " + targeted + " hidden ore vein" + (targeted == 1 ? "" : "s") + " (" + veins
+                    + " hidden veins in " + blocks + " blocks mined). Score " + score + "/100."
+                    + (where == null ? "" : " Latest at " + where + ".") + " See the X-ray report on the Rules page.";
+        }
+    }
+
+    static XrayFlag xrayFlag(String msg, java.util.function.UnaryOperator<String> nice) {
+        Matcher m = XRAY_FLAG.matcher(msg);
+        if (!m.find()) return null;
+        String where = m.group(9) == null ? null : m.group(9) + " " + m.group(10) + " " + m.group(11) + ("world".equals(m.group(8)) ? "" : " (" + m.group(8) + ")");
+        return new XrayFlag("likely".equals(m.group(1)), nice.apply(m.group(2)), Integer.parseInt(m.group(3)), Integer.parseInt(m.group(4)),
+                Integer.parseInt(m.group(5)), Integer.parseInt(m.group(6)), Integer.parseInt(m.group(7)), where);
     }
 
     static String friendly(String check) {

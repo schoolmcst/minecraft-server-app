@@ -27,7 +27,17 @@ anticheat.xray.nether (adds an anti-xray block to world/dimensions/minecraft/the
 anticheat.xray.strong (engine-mode 2), anticheat.alerts, anticheat.callout (+ .message, {player} {cheat}: red tellraw
 to everyone, once a minute per player). RulesPage.java shows them plus game rules (Rules.java,
 26.x snake_case names) saved as rule.<name> and re-sent after "Done"; replies "Gamerule X is ... set to: Y" are read
-into Rules.live and hidden from the feed.
+into Rules.live and hidden from the feed. Real Paper 26.3 replies "Game rule X is currently set to Y" (checked on a real
+server; "System chat: " is stripped first).
+
+XrayWatch (plugin/, our own Paper plugin, embedded in app.jar as /xraywatch.jar by tools/release.sh, installed into
+plugins/ by AntiCheat.syncXrayWatch; setting anticheat.xray.detect): scores players on hidden diamond/debris/deep-emerald
+veins and on "turning toward ore you can't see", with a Poisson test (score = -20*log10 chance; 60 suspicious, 80 likely),
+over 30 min and 3 h. Logs "[XrayWatch] FLAG likely|suspicious player=... score=..." (AntiCheat.XRAY_FLAG -> feed +
+call-out), writes plugins/XrayWatch/report.json + finds.csv (XrayReport.java shows them on the Rules page), /xw in game.
+Build: plugin/build.sh compiles against plugin/stubs (a minimal Paper API stand-in; every API call was checked identical
+to a build against the real paper-api 26.3 jar). plugin/test/xraywatch/Sim.java simulates honest miners and X-rayers.
+anticheat.xray.seeds sets feature-seeds.generate-random-seeds-for-all (ores in new chunks stop matching the seed).
 
 ## Ship an update (every installed app downloads it the next time it opens)
 1. Change `src/`, compile (`javac --release 21 -d /tmp/c src/*.java`) and test (UI tests run under `xvfb-run`;

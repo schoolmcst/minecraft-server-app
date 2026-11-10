@@ -18,3 +18,5 @@ paper.jar
 paper-version.txt
 .app.lock
 *.yml
+!plugin/src/plugin.yml
+plugin/XrayWatch.jar

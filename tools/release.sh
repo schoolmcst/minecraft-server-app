@@ -11,7 +11,9 @@ VERSION="${1:?usage: tools/release.sh <version> \"note\" ...}"; shift
 
 sed -i -E "s/static final String VERSION = \"[^\"]+\";/static final String VERSION = \"$VERSION\";/" src/Kit.java
 BUILD=$(mktemp -d)
+plugin/build.sh                                   # XrayWatch, the app's own anti-X-ray plugin
 javac --release 21 -Xlint:all,-serial -d "$BUILD/classes" src/*.java
+cp plugin/XrayWatch.jar "$BUILD/classes/xraywatch.jar"   # installed into survival servers by AntiCheat
 printf 'Main-Class: ServerLauncher\nImplementation-Version: %s\n' "$VERSION" > "$BUILD/manifest.txt"
 jar cfm launcher.jar "$BUILD/manifest.txt" -C "$BUILD/classes" .
 rm -rf "$BUILD"

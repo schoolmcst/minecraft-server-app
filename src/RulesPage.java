@@ -19,7 +19,9 @@ final class RulesPage {
     private boolean restartNeeded;
 
     private final Ui.Switch grim = new Ui.Switch(true), xray = new Ui.Switch(true), nether = new Ui.Switch(true),
-            strong = new Ui.Switch(false), alerts = new Ui.Switch(true), callout = new Ui.Switch(true);
+            strong = new Ui.Switch(false), alerts = new Ui.Switch(true), callout = new Ui.Switch(true),
+            detect = new Ui.Switch(true), admins = new Ui.Switch(true), seeds = new Ui.Switch(true);
+    private final XrayReport report;
     private final Ui.Field calloutText = new Ui.Field(AntiCheat.DEFAULT_CALLOUT, 24);
     private final JLabel calloutSaved = Ui.label(" ", Ui.font(12.5f), Ui.GREEN_HI);
 
@@ -48,6 +50,10 @@ final class RulesPage {
         acSwitch(xray, "anticheat.xray", true);
         acSwitch(nether, "anticheat.xray.nether", true);
         acSwitch(strong, "anticheat.xray.strong", false);
+        acSwitch(detect, "anticheat.xray.detect", true);
+        acSwitch(admins, "anticheat.xray.admins", true);
+        acSwitch(seeds, "anticheat.xray.seeds", true);
+        detect.onChange(on -> { admins.setEnabled(on); admins.repaint(); });
         alerts.onChange(on -> Kit.set("anticheat.alerts", on));
         callout.onChange(on -> { Kit.set("anticheat.callout", on); calloutText.setEnabled(on); });
         calloutText.setMaximumSize(new Dimension(360, 40));
@@ -73,6 +79,12 @@ final class RulesPage {
         ac.put(row(nether, "Hide Nether ores too", "Ancient debris (netherite), Nether gold and quartz look like netherrack."));
         ac.put(row(strong, "Stronger X-ray protection", "Also shows fake ores everywhere, so X-ray is useless. Uses a bit more "
                 + "internet and computer power."));
+        ac.put(row(detect, "Catch X-ray users by how they mine", "Watches every diamond, emerald and netherite find underground. "
+                + "X-rayers give themselves away by turning toward ores they can't see and finding far more hidden veins than "
+                + "luck allows. Honest miners, cave explorers and lucky streaks are not flagged. See the X-ray report below."));
+        ac.put(row(admins, "Tell admins in the game", "Admins (ops) get a private message in chat when someone is flagged."));
+        ac.put(row(seeds, "Shuffle ores in new areas", "Ores in newly explored land no longer match the world seed, so seed-based ore "
+                + "finders (a kind of X-ray that works even when ores are hidden) point to the wrong places."));
         ac.put(row(alerts, "Tell me when someone might be cheating", "Shows up in Recent activity on the Dashboard."));
         ac.put(row(callout, "Call out cheaters in chat", "Everyone sees a red message in chat when the anti-cheat catches someone "
                 + "(once a minute at most). {player} is their name, {cheat} is what they did."));
@@ -95,9 +107,12 @@ final class RulesPage {
         }
         rules.add(rs);
 
+        report = new XrayReport(app);
+
         Ui.Stack page = new Ui.Stack(16);
         page.put(banner);
         page.put(antiCheatCard);
+        page.put(report.card);
         page.put(rules);
         root.add(page, BorderLayout.NORTH);
 
@@ -137,6 +152,12 @@ final class RulesPage {
         strong.setOn(Kit.getBool("anticheat.xray.strong", false));
         alerts.setOn(Kit.getBool("anticheat.alerts", true));
         callout.setOn(AntiCheat.callout());
+        detect.setOn(Kit.getBool("anticheat.xray.detect", true));
+        admins.setOn(AntiCheat.xrayAdmins());
+        admins.setEnabled(detect.isOn());
+        seeds.setOn(Kit.getBool("anticheat.xray.seeds", true));
+        report.card.setVisible(AntiCheat.applies());
+        report.refresh();
         calloutText.setText(AntiCheat.calloutMessage());
         calloutText.setEnabled(callout.isOn());
         nether.setEnabled(xray.isOn());
@@ -166,6 +187,7 @@ final class RulesPage {
     /** Called when the server starts or stops. */
     void serverChanged() {
         refreshBanner();
+        if (report != null) report.refresh();
         refreshRules();
     }
 }

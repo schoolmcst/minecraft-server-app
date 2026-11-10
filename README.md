@@ -53,6 +53,12 @@ Survival servers come with **Grim Anticheat** (stops flying, speed, reach, kill 
 protection (ores stay hidden until a player is right next to them). Bedrock and Xbox players are skipped so they never
 get kicked by mistake. Flagged players show up in Recent activity. Each part can be switched on or off on the **Rules** page.
 
+**X-ray detection**: the server watches how players mine. X-rayers give themselves away by turning toward ores they
+can't see and by finding far more hidden diamonds and netherite than luck allows. The **X-ray report** on the Rules page
+shows everyone's score (0-100) and recent hidden finds with a **Copy teleport** button so you can go and look at their
+tunnels. Admins can also type `/xw` or `/xw <player>` in the game. Ores in newly explored areas are shuffled so seed-based
+ore finders point to the wrong places.
+
 ## Updates
 
 - **The app** checks for a new version when it opens and every few hours, and installs it by itself.

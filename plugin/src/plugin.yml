@@ -1,0 +1,10 @@
+name: XrayWatch
+version: "1.0"
+main: xraywatch.XrayWatch
+api-version: "1.13"
+description: Finds X-ray users by how they mine. Installed by the Minecraft Server app.
+commands:
+  xraywatch:
+    description: Shows who might be using X-ray, or one player's mining numbers.
+    usage: /xraywatch [player | reset <player>]
+    aliases: [xw]

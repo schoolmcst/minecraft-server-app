@@ -1,9 +1,11 @@
 {
-  "version": "4.9",
+  "version": "5.0",
   "file": "app.jar",
-  "sha256": "fca716180a440f58c1e1608ed7011dc98761949b7f55ad273403070d5133133b",
+  "sha256": "c0238c38acd8903d491c64aa5028ab0250438b37d60bf83790341ede5f3d5f46",
   "minJava": 21,
   "notes": [
-    "Cheaters get called out in chat: when the anti-cheat catches someone, everyone sees \"{player} is a cheater!\" (change the message or turn it off on the Rules page)"
+    "X-ray detection: the server now catches X-ray users by how they mine (turning toward hidden ores, too many hidden diamonds). See the X-ray report on the Rules page",
+    "Ores in newly explored areas are shuffled so seed-based ore finders don't work",
+    "Fixed the Rules page not showing the server's real game rule settings"
   ]
 }

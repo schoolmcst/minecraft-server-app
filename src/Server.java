@@ -538,6 +538,13 @@ final class Server {
             event(Kind.INFO, online.isEmpty() ? "Nobody is online right now." : "Online now: " + String.join(", ", names));
             return;
         }
+        AntiCheat.XrayFlag xf = AntiCheat.xrayFlag(msg, Server::nice);
+        if (xf != null) {
+            if (AntiCheat.alerts()) event(xf.likely() ? Kind.ERROR : Kind.WARN, xf.feedLine());
+            if (xf.likely() && AntiCheat.callout()) send(AntiCheat.calloutFor(xf.player(), "X-ray"));
+            fireChange();
+            return;
+        }
         if (Rules.read(msg)) return; // replies to the Rules page's gamerule commands
         String callout = AntiCheat.calloutCommand(msg, Server::nice);
         if (callout != null) send(callout);

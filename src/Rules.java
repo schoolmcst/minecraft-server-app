@@ -76,8 +76,8 @@ final class Rules {
         for (Rule r : GAME) s.send("gamerule " + r.name());
     }
 
-    static final Pattern REPLY = Pattern.compile("^(?:\\[[^\\]]*\\]\\s*)?Gamerule (?:minecraft:)?([a-z0-9_]+) is (?:currently|now) set to:? (\\S+)");
-    static final Pattern UNKNOWN = Pattern.compile("(?i)(unknown|incorrect argument).*gamerule|gamerule.*<--\\[HERE\\]");
+    static final Pattern REPLY = Pattern.compile("^(?:\\[[^\\]]*\\]\\s*)?(?:System chat:\\s*)?Game ?rule (?:minecraft:)?([a-z0-9_]+) is (?:currently|now) set to:? (\\S+)");
+    static final Pattern UNKNOWN = Pattern.compile("(?i)(unknown|incorrect argument).*game ?rule|game ?rule.*<--\\[HERE\\]");
 
     /** Reads the server's reply to a gamerule command. Returns true when the line was one (so the feed can skip it). */
     static boolean read(String msg) {
