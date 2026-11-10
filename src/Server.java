@@ -231,6 +231,10 @@ final class Server {
                 }
             }
 
+            // 1c. anti-cheat (survival servers): install/update Grim or park it, and match Paper's anti-X-ray
+            String ac = AntiCheat.sync(this::progress);
+            if (ac != null) event(ac.startsWith("Couldn't") || ac.contains("doesn't support") ? Kind.WARN : Kind.SYSTEM, ac);
+
             // 2. Java version
             int need = Setup.requiredJava(Kit.mcVersion());
             int have = Runtime.version().feature();
@@ -533,7 +537,12 @@ final class Server {
             event(Kind.INFO, online.isEmpty() ? "Nobody is online right now." : "Online now: " + String.join(", ", names));
             return;
         }
-        Matcher gr = GEYSER_REJECTED.matcher(msg);
+        String cheat = AntiCheat.alert(msg, Server::nice);
+        if (cheat != null) {
+            if (!cheat.isEmpty()) event(Kind.WARN, cheat);
+            return;
+        }
+                Matcher gr = GEYSER_REJECTED.matcher(msg);
         if (gr.find()) {
             String name = gr.group(1);
             event(Kind.WARN, name + " (Bedrock) tried to join but isn't on the whitelist. Add them on the Players page.");

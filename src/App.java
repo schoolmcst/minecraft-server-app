@@ -1601,6 +1601,9 @@ final class App {
         private final Ui.Btn jump = new Ui.Btn("Switch to new Minecraft", Ui.Kind.PRIMARY);
         private final Ui.Switch autoServer = new Ui.Switch(Kit.getBool("server.autoupdate", true));
         private final Ui.Switch autoApp = new Ui.Switch(Kit.getBool("app.autoupdate", true));
+        private final Ui.Switch antiCheat = new Ui.Switch(true);
+        private final JLabel antiCheatNote = Ui.label(" ", Ui.font(12.5f), Ui.FAINT);
+        private final Ui.Card acCard = new Ui.Card();
         private final Ui.Btn appCheck = new Ui.Btn("Check for app update", Ui.Kind.SECONDARY);
         final JLabel appNote = Ui.label("", Ui.font(12.5f), Ui.FAINT);
         private final JLabel updateNote = Ui.label("", Ui.font(12.5f), Ui.FAINT);
@@ -1717,8 +1720,23 @@ final class App {
             fs.put(Ui.row(10, fb.toArray(new Component[0])));
             files.add(fs);
 
+            antiCheat.onChange(on -> {
+                Kit.set("anticheat", on);
+                boolean running = server.state() != Server.State.STOPPED && server.state() != Server.State.CRASHED;
+                antiCheatNote.setText(running ? "Restart the server to " + (on ? "turn it on." : "turn it off.") : "");
+                if (!running) AntiCheat.sync((t, f) -> { });
+            });
+            Ui.Stack acs = new Ui.Stack(12);
+            acs.put(Ui.cardTitle("Anti-cheat"));
+            acs.put(Ui.row(12, antiCheat, Ui.label("Stop cheaters", Ui.font(14), Ui.TEXT), antiCheatNote, Ui.glue()));
+            acs.put(Ui.para("Grim Anticheat catches hacked clients (flying, speed, reach, kill aura, auto-clickers) and X-ray is "
+                    + "blocked by hiding ores until a player is right next to them. Bedrock and Xbox players are skipped, so they "
+                    + "never get kicked by mistake. When someone gets flagged, it shows up in Recent activity.", Ui.font(13), Ui.FAINT));
+            acCard.add(acs);
+
             Ui.Stack page = new Ui.Stack(16);
             page.put(game);
+            page.put(acCard);
             page.put(perf);
             page.put(back);
             page.put(soft);
@@ -1752,6 +1770,9 @@ final class App {
             whitelistWarn.setVisible(!wl);
             restartBtn2.setVisible(false);
             saveNote.setText(" ");
+            acCard.setVisible(AntiCheat.applies());
+            antiCheat.setOn(Kit.getBool("anticheat", true));
+            antiCheatNote.setText(AntiCheat.enabled() && AntiCheat.installedLabel() == null ? "Turns on the next time the server starts." : "");
             refreshBackups();
             refreshState();
         }

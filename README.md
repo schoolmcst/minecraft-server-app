@@ -46,6 +46,12 @@ players are off by default on modded servers because they can't see most modded 
 | **Play online** | Friends join from anywhere (playit.gg), plus Xbox/console setup. |
 | **Settings** | Server name, rules, memory, backups, updates, desktop shortcut. |
 
+## Anti-cheat
+
+Survival servers come with **Grim Anticheat** (stops flying, speed, reach, kill aura and auto-clickers) and X-ray
+protection (ores stay hidden until a player is right next to them). Bedrock and Xbox players are skipped so they never
+get kicked by mistake. Flagged players show up in Recent activity. Turn it off in **Settings > Anti-cheat**.
+
 ## Updates
 
 - **The app** checks for a new version when it opens and every few hours, and installs it by itself.

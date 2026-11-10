@@ -19,6 +19,11 @@ pictures). Modrinth pictures are WebP: Images.java downloads the TwelveMonkeys r
 (SHA-1 pinned). Geyser/Floodgate run as
 Fabric mods (config/Geyser-Fabric). Test overrides: -Dkit.home, -Dkit.dir, -Dkit.fabricmeta, -Dkit.modrinth, -Dkit.curseforge, -Dkit.maven.
 
+Anti-cheat (AntiCheat.java, survival/Paper servers only, setting `anticheat`, default on): every start installs or
+updates Grim Anticheat (Modrinth project grimac, stable release preferred) into plugins/, parks it in plugins/disabled
+when off, and sets anticheat.anti-xray.enabled in config/paper-world-defaults.yml. Grim alerts ("Grim » X failed Y (xN)")
+become feed lines, at most once a minute per player and check.
+
 ## Ship an update (every installed app downloads it the next time it opens)
 1. Change `src/`, compile (`javac --release 21 -d /tmp/c src/*.java`) and test (UI tests run under `xvfb-run`;
    set `-Dkit.dir=<folder>` and point downloads at local mocks with `-Dkit.fill`, `-Dkit.geyser`, `-Dkit.playit`,
