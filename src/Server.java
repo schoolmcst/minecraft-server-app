@@ -539,6 +539,8 @@ final class Server {
             return;
         }
         if (Rules.read(msg)) return; // replies to the Rules page's gamerule commands
+        String callout = AntiCheat.calloutCommand(msg, Server::nice);
+        if (callout != null) send(callout);
         String cheat = AntiCheat.alert(msg, Server::nice);
         if (cheat != null) {
             if (!cheat.isEmpty() && AntiCheat.alerts()) event(Kind.WARN, cheat);

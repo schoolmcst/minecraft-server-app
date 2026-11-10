@@ -229,6 +229,61 @@ final class AntiCheat {
         return nice.apply(who) + " might be cheating (" + friendly(check) + "). The anti-cheat is watching them.";
     }
 
+    // ------------------------------------------------------------------ chat call-out
+
+    static final String DEFAULT_CALLOUT = "{player} is a cheater!";
+
+    static boolean callout() { return Kit.getBool("anticheat.callout", true); }
+
+    static String calloutMessage() {
+        String m = Kit.get("anticheat.callout.message", DEFAULT_CALLOUT);
+        return m == null || m.isBlank() ? DEFAULT_CALLOUT : m;
+    }
+
+    private static final Map<String, Long> lastCalledOut = new HashMap<>();
+
+    /**
+     * The command that tells everyone in chat (Java and Bedrock) that a flagged player is a cheater, or null when
+     * this alert isn't one, the call-out is off, or this player was already called out in the last minute.
+     */
+    static String calloutCommand(String msg, java.util.function.UnaryOperator<String> nice) {
+        if (!callout()) return null;
+        Matcher m = ALERT.matcher(msg);
+        if (!m.find()) return null;
+        String who = nice.apply(m.group(1));
+        long now = System.currentTimeMillis();
+        synchronized (lastCalledOut) {
+            Long t = lastCalledOut.get(who.toLowerCase(Locale.ROOT));
+            if (t != null && now - t < 60_000) return null;
+            lastCalledOut.put(who.toLowerCase(Locale.ROOT), now);
+        }
+        String text = "\u26A0 " + calloutMessage().replace("{player}", who).replace("{cheat}", shortName(m.group(2).trim()));
+        return "tellraw @a {\"text\":\"" + jsonEscape(text) + "\",\"color\":\"red\",\"bold\":true}";
+    }
+
+    static String jsonEscape(String s) {
+        StringBuilder b = new StringBuilder();
+        for (char c : s.toCharArray()) {
+            if (c == '"' || c == '\\') b.append('\\').append(c);
+            else if (c < 0x20) b.append(' ');
+            else b.append(c);
+        }
+        return b.toString();
+    }
+
+    static String shortName(String check) {
+        String c = check.toLowerCase(Locale.ROOT);
+        if (c.contains("reach")) return "reach";
+        if (c.contains("killaura") || c.contains("aim")) return "kill aura";
+        if (c.contains("autoclick") || c.contains("cps")) return "auto-clicker";
+        if (c.contains("fly") || c.contains("simulation") || c.contains("prediction")) return "flying/speed";
+        if (c.contains("speed") || c.contains("timer")) return "speed";
+        if (c.contains("nofall") || c.contains("groundspoof")) return "no fall damage";
+        if (c.contains("velocity") || c.contains("knockback")) return "no knockback";
+        if (c.contains("scaffold") || c.contains("place") || c.contains("fastbreak")) return "fast building";
+        return "hacks";
+    }
+
     static String friendly(String check) {
         String c = check.toLowerCase(Locale.ROOT);
         if (c.contains("reach")) return "hitting from too far away";

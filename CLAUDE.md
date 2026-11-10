@@ -24,7 +24,8 @@ updates Grim Anticheat (Modrinth project grimac, stable release preferred) into 
 when off, and sets anticheat.anti-xray.enabled in config/paper-world-defaults.yml. Grim alerts ("Grim » X failed Y (xN)")
 become feed lines, at most once a minute per player and check. Settings: anticheat (Grim), anticheat.xray,
 anticheat.xray.nether (adds an anti-xray block to world/dimensions/minecraft/the_nether/paper-world.yml),
-anticheat.xray.strong (engine-mode 2), anticheat.alerts. RulesPage.java shows them plus game rules (Rules.java,
+anticheat.xray.strong (engine-mode 2), anticheat.alerts, anticheat.callout (+ .message, {player} {cheat}: red tellraw
+to everyone, once a minute per player). RulesPage.java shows them plus game rules (Rules.java,
 26.x snake_case names) saved as rule.<name> and re-sent after "Done"; replies "Gamerule X is ... set to: Y" are read
 into Rules.live and hidden from the feed.
 

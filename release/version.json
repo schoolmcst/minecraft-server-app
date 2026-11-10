@@ -1,10 +1,9 @@
 {
-  "version": "4.8",
+  "version": "4.9",
   "file": "app.jar",
-  "sha256": "92924d3ee97d62c3b315888763cec0e3a5546fbd92e042cc4942fa5a94581644",
+  "sha256": "fca716180a440f58c1e1608ed7011dc98761949b7f55ad273403070d5133133b",
   "minJava": 21,
   "notes": [
-    "New Rules tab: switch anti-cheat parts and game rules (keep inventory, coordinates, mob griefing, fire spread and more) on or off",
-    "X-ray protection now covers the Nether too (netherite and Nether ores)"
+    "Cheaters get called out in chat: when the anti-cheat catches someone, everyone sees \"{player} is a cheater!\" (change the message or turn it off on the Rules page)"
   ]
 }

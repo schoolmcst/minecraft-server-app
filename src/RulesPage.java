@@ -19,7 +19,9 @@ final class RulesPage {
     private boolean restartNeeded;
 
     private final Ui.Switch grim = new Ui.Switch(true), xray = new Ui.Switch(true), nether = new Ui.Switch(true),
-            strong = new Ui.Switch(false), alerts = new Ui.Switch(true);
+            strong = new Ui.Switch(false), alerts = new Ui.Switch(true), callout = new Ui.Switch(true);
+    private final Ui.Field calloutText = new Ui.Field(AntiCheat.DEFAULT_CALLOUT, 24);
+    private final JLabel calloutSaved = Ui.label(" ", Ui.font(12.5f), Ui.GREEN_HI);
 
     RulesPage(App app) {
         this.app = app;
@@ -47,6 +49,20 @@ final class RulesPage {
         acSwitch(nether, "anticheat.xray.nether", true);
         acSwitch(strong, "anticheat.xray.strong", false);
         alerts.onChange(on -> Kit.set("anticheat.alerts", on));
+        callout.onChange(on -> { Kit.set("anticheat.callout", on); calloutText.setEnabled(on); });
+        calloutText.setMaximumSize(new Dimension(360, 40));
+        Ui.Btn saveCallout = new Ui.Btn("Save", Ui.Kind.SECONDARY).small();
+        Runnable doSave = () -> {
+            String t = calloutText.getText().trim();
+            Kit.set("anticheat.callout.message", t.isEmpty() || t.equals(AntiCheat.DEFAULT_CALLOUT) ? null : t);
+            calloutText.setText(AntiCheat.calloutMessage());
+            calloutSaved.setText("Saved");
+            javax.swing.Timer clear = new javax.swing.Timer(2000, e -> calloutSaved.setText(" "));
+            clear.setRepeats(false);
+            clear.start();
+        };
+        saveCallout.onClick(doSave);
+        calloutText.addActionListener(e -> doSave.run());
         xray.onChange(on -> { nether.setEnabled(on); strong.setEnabled(on); nether.repaint(); strong.repaint(); });
         Ui.Stack ac = new Ui.Stack(14);
         ac.put(Ui.row(10, Ui.cardTitle("Anti-cheat"), Ui.tag("Survival servers", Ui.MUTED), Ui.glue()));
@@ -58,6 +74,9 @@ final class RulesPage {
         ac.put(row(strong, "Stronger X-ray protection", "Also shows fake ores everywhere, so X-ray is useless. Uses a bit more "
                 + "internet and computer power."));
         ac.put(row(alerts, "Tell me when someone might be cheating", "Shows up in Recent activity on the Dashboard."));
+        ac.put(row(callout, "Call out cheaters in chat", "Everyone sees a red message in chat when the anti-cheat catches someone "
+                + "(once a minute at most). {player} is their name, {cheat} is what they did."));
+        ac.put(Ui.row(10, Box.createHorizontalStrut(58), calloutText, saveCallout, calloutSaved, Ui.glue()));
         antiCheatCard.add(ac);
 
         // game rules
@@ -117,6 +136,9 @@ final class RulesPage {
         nether.setOn(Kit.getBool("anticheat.xray.nether", true));
         strong.setOn(Kit.getBool("anticheat.xray.strong", false));
         alerts.setOn(Kit.getBool("anticheat.alerts", true));
+        callout.setOn(AntiCheat.callout());
+        calloutText.setText(AntiCheat.calloutMessage());
+        calloutText.setEnabled(callout.isOn());
         nether.setEnabled(xray.isOn());
         strong.setEnabled(xray.isOn());
         refreshRules();
