@@ -37,6 +37,7 @@ final class App {
     private final OnlinePage onlinePage = new OnlinePage();
     private final ServersPage serversPage = new ServersPage(this);
     private final ModsPage modsPage = new ModsPage(this);
+    private RulesPage rulesPage;
 
     static final DateTimeFormatter CLOCK = DateTimeFormatter.ofPattern("h:mm a", Locale.US);
 
@@ -89,6 +90,8 @@ final class App {
         addPage("servers", Ui.scroll(serversPage.root));
         addPage("home", Ui.scroll(dashboard.root));
         addPage("mods", Ui.scroll(modsPage.root));
+        rulesPage = new RulesPage(this);
+        addPage("rules", Ui.scroll(rulesPage.root));
         addPage("players", Ui.scroll(players.root));
         addPage("console", console.root);
         addPage("online", Ui.scroll(onlinePage.root));
@@ -315,6 +318,7 @@ final class App {
         addNav(items, "home", "Dashboard", "home");
         addNav(items, "players", "Players", "players");
         addNav(items, "mods", "Mods", "mods");
+        addNav(items, "rules", "Rules", "rules");
         addNav(items, "console", "Console", "console");
         addNav(items, "online", "Play online", "online");
         addNav(items, "settings", "Settings", "settings");
@@ -390,7 +394,7 @@ final class App {
     /** Mods only make sense on a modded server; most pages need a server to exist. */
     void updateNavForServer() {
         boolean has = Kit.hasServer();
-        for (String id : List.of("home", "players", "console", "settings")) if (nav.get(id) != null) nav.get(id).setVisible(has);
+        for (String id : List.of("home", "players", "rules", "console", "settings")) if (nav.get(id) != null) nav.get(id).setVisible(has);
         if (nav.get("mods") != null) nav.get("mods").setVisible(has && Kit.isFabric());
         switcher.repaint();
         startBtn.setVisible(has);
@@ -415,6 +419,7 @@ final class App {
         players.refresh();
         settings.refresh();
         modsPage.refresh();
+        rulesPage.refresh();
         serversPage.refresh();
         if (Kit.hasServer()) {
             server.event(Server.Kind.SYSTEM, "Opened " + Kit.serverName() + "."
@@ -500,6 +505,7 @@ final class App {
             case "players" -> { pageTitle.setText("Players"); pageSub.setText("Who can join, who's online, and who's an admin"); players.refresh(); }
             case "console" -> { pageTitle.setText("Console"); pageSub.setText("What's happening on the server, and a place to type commands"); console.focus(); }
             case "online" -> { pageTitle.setText("Play online"); pageSub.setText("Let friends join from anywhere, for free"); }
+            case "rules" -> { pageTitle.setText("Rules"); pageSub.setText("Turn anti-cheat and game rules on or off"); rulesPage.refresh(); }
             case "settings" -> { pageTitle.setText("Settings"); pageSub.setText("Game rules, memory, backups and updates"); settings.refresh(); }
             default -> { }
         }
@@ -584,6 +590,7 @@ final class App {
         console.refreshState();
         onlinePage.refresh();
         settings.refreshState();
+        if (rulesPage != null) rulesPage.serverChanged();
     }
 
     static List<String> lanAddresses() {
@@ -1736,7 +1743,6 @@ final class App {
 
             Ui.Stack page = new Ui.Stack(16);
             page.put(game);
-            page.put(acCard);
             page.put(perf);
             page.put(back);
             page.put(soft);

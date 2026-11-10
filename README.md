@@ -42,6 +42,7 @@ players are off by default on modded servers because they can't see most modded 
 | **Dashboard** | Status, who's online, the addresses friends type in, recent activity. |
 | **Players** | Whitelist (Java name or Xbox gamertag), admins, kick, remove. |
 | **Mods** | Modded servers only: add and remove mods. |
+| **Rules** | Switches for anti-cheat and game rules (keep inventory, coordinates, mob griefing, fire spread...). |
 | **Console** | A tidy feed of what's happening and a box for commands. |
 | **Play online** | Friends join from anywhere (playit.gg), plus Xbox/console setup. |
 | **Settings** | Server name, rules, memory, backups, updates, desktop shortcut. |
@@ -50,7 +51,7 @@ players are off by default on modded servers because they can't see most modded 
 
 Survival servers come with **Grim Anticheat** (stops flying, speed, reach, kill aura and auto-clickers) and X-ray
 protection (ores stay hidden until a player is right next to them). Bedrock and Xbox players are skipped so they never
-get kicked by mistake. Flagged players show up in Recent activity. Turn it off in **Settings > Anti-cheat**.
+get kicked by mistake. Flagged players show up in Recent activity. Each part can be switched on or off on the **Rules** page.
 
 ## Updates
 

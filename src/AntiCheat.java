@@ -17,7 +17,17 @@ final class AntiCheat {
     /** Anti-cheat only applies to survival (Paper) servers; mods often add movement Grim would take for cheating. */
     static boolean applies() { return Kit.hasServer() && !Kit.isFabric(); }
 
+    /** Grim (hacked clients). */
     static boolean enabled() { return applies() && Kit.getBool("anticheat", true); }
+
+    static boolean xray() { return applies() && Kit.getBool("anticheat.xray", true); }
+
+    static boolean xrayNether() { return xray() && Kit.getBool("anticheat.xray.nether", true); }
+
+    /** Engine mode 2: also sends fake ores, so X-ray shows ore everywhere. Costs a little more internet and CPU. */
+    static boolean xrayStrong() { return Kit.getBool("anticheat.xray.strong", false); }
+
+    static boolean alerts() { return Kit.getBool("anticheat.alerts", true); }
 
     static List<Path> grimJars(Path dir) {
         if (!Files.isDirectory(dir)) return List.of();
@@ -61,7 +71,7 @@ final class AntiCheat {
         } catch (IOException e) {
             said = "Couldn't set up the anti-cheat: " + Kit.describe(e);
         }
-        setAntiXray(enabled());
+        configureXray();
         return said;
     }
 
@@ -110,25 +120,67 @@ final class AntiCheat {
 
     static Path paperWorldDefaults() { return Kit.dir().resolve("config").resolve("paper-world-defaults.yml"); }
 
-    /**
-     * Sets anticheat.anti-xray.enabled in Paper's world defaults. The file only exists after the first start; until
-     * then Paper's default (off) applies and the next start sets it.
-     */
-    static boolean setAntiXray(boolean on) {
-        Path f = paperWorldDefaults();
-        if (!Files.exists(f)) return false;
-        try {
-            String text = Files.readString(f, StandardCharsets.UTF_8);
-            String out = withAntiXray(text, on);
-            if (!out.equals(text)) Files.writeString(f, out, StandardCharsets.UTF_8);
-            return true;
-        } catch (IOException e) {
-            return false;
+    /** Sets Paper's anti-X-ray to match the switches: the world defaults (Overworld) and the Nether's own file. */
+    static void configureXray() {
+        String mode = xrayStrong() ? "2" : "1";
+        editYaml(paperWorldDefaults(), y -> withAntiXray(withAntiXray(y, "enabled", String.valueOf(xray())), "engine-mode", mode));
+        for (Path f : netherConfigs()) {
+            editYaml(f, y -> {
+                if (!y.matches("(?s).*(^|\n)anticheat:\\s*\n.*")) {
+                    if (!xrayNether()) return y;
+                    y = y.stripTrailing() + "\n" + NETHER_BLOCK + "\n";
+                }
+                return withAntiXray(withAntiXray(y, "enabled", String.valueOf(xrayNether())), "engine-mode", mode);
+            });
         }
     }
 
-    /** Rewrites the "enabled:" line inside anticheat: > anti-xray:, keeping everything else as it was. */
-    static String withAntiXray(String yaml, boolean on) {
+    /** Netherite and Nether ores, hidden behind netherrack (Paper's suggested Nether setup). */
+    static final String NETHER_BLOCK = String.join("\n",
+            "anticheat:",
+            "  anti-xray:",
+            "    enabled: true",
+            "    engine-mode: 1",
+            "    hidden-blocks:",
+            "    - ancient_debris",
+            "    - nether_gold_ore",
+            "    - nether_quartz_ore",
+            "    - chest",
+            "    lava-obscures: false",
+            "    max-block-height: 128",
+            "    replacement-blocks:",
+            "    - basalt",
+            "    - blackstone",
+            "    - gravel",
+            "    - netherrack",
+            "    - soul_sand",
+            "    - soul_soil",
+            "    update-radius: 2",
+            "    use-permission: false");
+
+    /** The Nether's paper-world.yml: world/dimensions/minecraft/the_nether (Paper 26.x) or world_nether (older). */
+    static List<Path> netherConfigs() {
+        String level = Setup.readProps().getOrDefault("level-name", "world");
+        List<Path> out = new ArrayList<>();
+        for (Path p : List.of(Kit.dir().resolve(level).resolve("dimensions").resolve("minecraft").resolve("the_nether").resolve("paper-world.yml"),
+                Kit.dir().resolve(level + "_nether").resolve("paper-world.yml")))
+            if (Files.exists(p)) out.add(p);
+        return out;
+    }
+
+    private static void editYaml(Path f, java.util.function.UnaryOperator<String> change) {
+        if (!Files.exists(f)) return; // made by Paper on the first start; set on the next one
+        try {
+            String text = Files.readString(f, StandardCharsets.UTF_8).replace("\r\n", "\n");
+            String out = change.apply(text);
+            if (!out.equals(text)) Files.writeString(f, out, StandardCharsets.UTF_8);
+        } catch (IOException ignored) { }
+    }
+
+    static String withAntiXray(String yaml, boolean on) { return withAntiXray(yaml, "enabled", String.valueOf(on)); }
+
+    /** Rewrites one "key: value" line inside anticheat: > anti-xray:, keeping everything else as it was. */
+    static String withAntiXray(String yaml, String key, String value) {
         String[] lines = yaml.split("\n", -1);
         int anticheat = -1, ax = -1;
         for (int i = 0; i < lines.length; i++) {
@@ -139,9 +191,9 @@ final class AntiCheat {
             if (ax >= 0) {
                 int axIndent = indent(lines[ax]);
                 if (!l.isBlank() && indent(l) <= axIndent) break;
-                Matcher m = Pattern.compile("^(\\s+)enabled:\\s*(true|false)\\s*$").matcher(l);
+                Matcher m = Pattern.compile("^(\\s+)" + Pattern.quote(key) + ":\\s*(\\S+)\\s*$").matcher(l);
                 if (m.matches() && indent(l) > axIndent) {
-                    lines[i] = m.group(1) + "enabled: " + on;
+                    lines[i] = m.group(1) + key + ": " + value;
                     return String.join("\n", lines);
                 }
             }

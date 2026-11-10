@@ -22,7 +22,11 @@ Fabric mods (config/Geyser-Fabric). Test overrides: -Dkit.home, -Dkit.dir, -Dkit
 Anti-cheat (AntiCheat.java, survival/Paper servers only, setting `anticheat`, default on): every start installs or
 updates Grim Anticheat (Modrinth project grimac, stable release preferred) into plugins/, parks it in plugins/disabled
 when off, and sets anticheat.anti-xray.enabled in config/paper-world-defaults.yml. Grim alerts ("Grim » X failed Y (xN)")
-become feed lines, at most once a minute per player and check.
+become feed lines, at most once a minute per player and check. Settings: anticheat (Grim), anticheat.xray,
+anticheat.xray.nether (adds an anti-xray block to world/dimensions/minecraft/the_nether/paper-world.yml),
+anticheat.xray.strong (engine-mode 2), anticheat.alerts. RulesPage.java shows them plus game rules (Rules.java,
+26.x snake_case names) saved as rule.<name> and re-sent after "Done"; replies "Gamerule X is ... set to: Y" are read
+into Rules.live and hidden from the feed.
 
 ## Ship an update (every installed app downloads it the next time it opens)
 1. Change `src/`, compile (`javac --release 21 -d /tmp/c src/*.java`) and test (UI tests run under `xvfb-run`;

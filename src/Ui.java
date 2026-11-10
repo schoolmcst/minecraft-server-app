@@ -675,6 +675,16 @@ final class Ui {
                         g2.draw(new Line2D.Float(16.5f, 6.2f, 10, 10));
                         g2.draw(new Line2D.Float(10, 10, 10, 17.5f));
                     }
+                    case "rules" -> { // a shield with a check
+                        Path2D p = new Path2D.Float();
+                        p.moveTo(10, 2.5); p.lineTo(16.5, 5); p.lineTo(16.5, 9.5);
+                        p.curveTo(16.5, 13.5, 13.5, 16, 10, 17.5);
+                        p.curveTo(6.5, 16, 3.5, 13.5, 3.5, 9.5); p.lineTo(3.5, 5); p.closePath();
+                        g2.draw(p);
+                        Path2D t = new Path2D.Float();
+                        t.moveTo(7, 10); t.lineTo(9.2, 12.2); t.lineTo(13.2, 7.8);
+                        g2.draw(t);
+                    }
                     case "settings" -> {
                         g2.draw(new Line2D.Float(3, 6, 17, 6));
                         g2.draw(new Line2D.Float(3, 14, 17, 14));

@@ -1,9 +1,10 @@
 {
-  "version": "4.7",
+  "version": "4.8",
   "file": "app.jar",
-  "sha256": "59c98211fa3a3d6fe66a843c38799da53ae9833d1c078557b124c12fa18df65a",
+  "sha256": "92924d3ee97d62c3b315888763cec0e3a5546fbd92e042cc4942fa5a94581644",
   "minJava": 21,
   "notes": [
-    "Anti-cheat: survival servers now stop cheaters (Grim Anticheat + X-ray protection). Switch it off in Settings if you ever need to"
+    "New Rules tab: switch anti-cheat parts and game rules (keep inventory, coordinates, mob griefing, fire spread and more) on or off",
+    "X-ray protection now covers the Nether too (netherite and Nether ores)"
   ]
 }

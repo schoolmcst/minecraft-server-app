@@ -505,6 +505,7 @@ final class Server {
                 long secs = (readyAt - startedAt) / 1000;
                 event(Kind.SYSTEM, "Server is online (started in " + secs + "s). Waiting for players...");
                 onStarted.run();
+                Rules.applyAndAsk(this);
                 return;
             }
             if (level.equals("ERROR") && !msg.startsWith("[")) event(Kind.ERROR, msg);
@@ -537,9 +538,10 @@ final class Server {
             event(Kind.INFO, online.isEmpty() ? "Nobody is online right now." : "Online now: " + String.join(", ", names));
             return;
         }
+        if (Rules.read(msg)) return; // replies to the Rules page's gamerule commands
         String cheat = AntiCheat.alert(msg, Server::nice);
         if (cheat != null) {
-            if (!cheat.isEmpty()) event(Kind.WARN, cheat);
+            if (!cheat.isEmpty() && AntiCheat.alerts()) event(Kind.WARN, cheat);
             return;
         }
                 Matcher gr = GEYSER_REJECTED.matcher(msg);
