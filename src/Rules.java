@@ -41,7 +41,10 @@ final class Rules {
             new Rule("advance_weather", "Weather changes", "Off stops rain and storms from coming and going.", "true", "false", true),
             new Rule("show_death_messages", "Death messages in chat", "\"Steve was blown up by Creeper\".", "true", "false", true));
 
-    /** What the running server says each rule is, filled in from its replies. */
+    /** Rules the page doesn't show but presets change (so they can be switched back). */
+    static final List<String> EXTRA = List.of("pvp", "natural_health_regeneration");
+
+    /** What the running server says each rule is, filled in from its replies ("difficulty" too). */
     static final Map<String, String> live = Collections.synchronizedMap(new HashMap<>());
     static volatile Runnable onChange = () -> { };
 
@@ -74,9 +77,12 @@ final class Rules {
     static void ask(Server s) {
         if (!s.isRunning()) return;
         for (Rule r : GAME) s.send("gamerule " + r.name());
+        for (String r : EXTRA) s.send("gamerule " + r);
+        s.send("difficulty");
     }
 
     static final Pattern REPLY = Pattern.compile("^(?:\\[[^\\]]*\\]\\s*)?(?:System chat:\\s*)?Game ?rule (?:minecraft:)?([a-z0-9_]+) is (?:currently|now) set to:? (\\S+)");
+    static final Pattern DIFFICULTY = Pattern.compile("^(?:System chat:\\s*)?The difficulty (?:is|has been set to|did not change; it is already set to) (\\w+)", Pattern.CASE_INSENSITIVE);
     static final Pattern UNKNOWN = Pattern.compile("(?i)(unknown|incorrect argument).*game ?rule|game ?rule.*<--\\[HERE\\]");
 
     /** Reads the server's reply to a gamerule command. Returns true when the line was one (so the feed can skip it). */
@@ -84,6 +90,12 @@ final class Rules {
         Matcher m = REPLY.matcher(msg);
         if (m.find()) {
             live.put(m.group(1), m.group(2));
+            onChange.run();
+            return true;
+        }
+        Matcher d = DIFFICULTY.matcher(msg);
+        if (d.find()) {
+            live.put("difficulty", d.group(1).toLowerCase(Locale.ROOT));
             onChange.run();
             return true;
         }

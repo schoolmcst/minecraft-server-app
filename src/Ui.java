@@ -685,6 +685,33 @@ final class Ui {
                         t.moveTo(7, 10); t.lineTo(9.2, 12.2); t.lineTo(13.2, 7.8);
                         g2.draw(t);
                     }
+                    case "map" -> { // a folded map
+                        Path2D p = new Path2D.Float();
+                        p.moveTo(2.5, 5); p.lineTo(7.5, 3); p.lineTo(12.5, 5); p.lineTo(17.5, 3); p.lineTo(17.5, 15);
+                        p.lineTo(12.5, 17); p.lineTo(7.5, 15); p.lineTo(2.5, 17); p.closePath();
+                        g2.draw(p);
+                        g2.draw(new Line2D.Float(7.5f, 3, 7.5f, 15));
+                        g2.draw(new Line2D.Float(12.5f, 5, 12.5f, 17));
+                    }
+                    case "world" -> { // sun behind a cloud
+                        g2.draw(new Ellipse2D.Float(4, 3, 7, 7));
+                        g2.draw(new Line2D.Float(7.5f, 0.8f, 7.5f, 1.6f));
+                        g2.draw(new Line2D.Float(1.2f, 6.5f, 2, 6.5f));
+                        Path2D cl = new Path2D.Float();
+                        cl.moveTo(6, 17); cl.lineTo(15.5, 17);
+                        cl.curveTo(18.5, 17, 18.5, 12, 15.5, 12);
+                        cl.curveTo(14.8, 8.8, 10, 8.8, 9.6, 12.2);
+                        cl.curveTo(6.8, 11.8, 5.5, 14, 6, 17);
+                        g2.setColor(SIDEBAR);
+                        g2.fill(cl);
+                        g2.setColor(c);
+                        g2.draw(cl);
+                    }
+                    case "health" -> { // a pulse line
+                        Path2D p = new Path2D.Float();
+                        p.moveTo(2, 10.5); p.lineTo(6, 10.5); p.lineTo(8, 5); p.lineTo(11, 16); p.lineTo(13.2, 8.5); p.lineTo(14.6, 10.5); p.lineTo(18, 10.5);
+                        g2.draw(p);
+                    }
                     case "settings" -> {
                         g2.draw(new Line2D.Float(3, 6, 17, 6));
                         g2.draw(new Line2D.Float(3, 14, 17, 14));

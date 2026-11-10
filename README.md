@@ -40,9 +40,12 @@ players are off by default on modded servers because they can't see most modded 
 | Page | What it's for |
 |---|---|
 | **Dashboard** | Status, who's online, the addresses friends type in, recent activity. |
-| **Players** | Whitelist (Java name or Xbox gamertag), admins, kick, remove. |
+| **Players** | Whitelist (Java name or Xbox gamertag), admins, kick, remove. **Manage** on an online player opens their inventory and ender chest, Give items and Teleport. |
+| **Map** | Survival servers: a top-down map of the world with everyone's position, graves, spawn and places you mark. Drag, scroll to zoom, click a player, right-click to teleport someone there. |
+| **World** | Time and weather buttons, presets (Hardcore weekend, Peaceful build day, PvP event) that switch back on their own, graves with a **Give back** button, and the death log. |
 | **Mods** | Modded servers only: add and remove mods. |
 | **Rules** | Switches for anti-cheat and game rules (keep inventory, coordinates, mob griefing, fire spread...). |
+| **Health** | Server speed, memory and CPU now and over the last hour (when did the lag start?), plus old logs and crash reports with plain-words explanations. |
 | **Console** | A tidy feed of what's happening and a box for commands. |
 | **Play online** | Friends join from anywhere (playit.gg), plus Xbox/console setup. |
 | **Settings** | Server name, rules, memory, backups, updates, desktop shortcut. |
@@ -69,7 +72,15 @@ anti-cheat still watches how everyone plays.
 On survival servers, when someone dies their items and XP go into a grave (a head) where they died, instead of dropping
 and disappearing. They get the coordinates in chat, then use or break the grave to get everything back (armor goes
 straight back on). It works for Java, Bedrock and Xbox players. Only the owner can open it at first; after an hour (you
-can change this on the **Rules** page) anyone can. Creepers, lava and water can't destroy graves.
+can change this on the **Rules** page) anyone can. Creepers, lava and water can't destroy graves. If someone can't find
+their grave, press **Give back** on the World page (if they're offline they get the items when they next join).
+
+## Map, inventories and item pictures
+
+The map is drawn by the server around players as they explore (one pixel per block, like an in-game map). **Draw explored
+land** on the Map page adds places people visited before, slowly so the game doesn't lag. Item pictures in Give items
+and inventories come from Minecraft on this PC (open the right version once in the launcher); without it, items show a
+coloured letter tile.
 
 ## Updates
 

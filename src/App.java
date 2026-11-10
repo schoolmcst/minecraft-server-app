@@ -38,6 +38,9 @@ final class App {
     private final ServersPage serversPage = new ServersPage(this);
     private final ModsPage modsPage = new ModsPage(this);
     private RulesPage rulesPage;
+    private MapPage mapPage;
+    private WorldPage worldPage;
+    private HealthPage healthPage;
 
     static final DateTimeFormatter CLOCK = DateTimeFormatter.ofPattern("h:mm a", Locale.US);
 
@@ -46,6 +49,7 @@ final class App {
     App() {
         INSTANCE = this;
         server.changeListeners.add(() -> ui(this::refreshAll));
+        Game.start(server);
         server.eventListeners.add(e -> ui(() -> { console.add(e); dashboard.addEvent(e); }));
         server.rawListeners.add(console::raw);
         server.eulaPrompt = this::askEula;
@@ -92,6 +96,12 @@ final class App {
         addPage("mods", Ui.scroll(modsPage.root));
         rulesPage = new RulesPage(this);
         addPage("rules", Ui.scroll(rulesPage.root));
+        mapPage = new MapPage(this);
+        addPage("map", mapPage.root);
+        worldPage = new WorldPage(this);
+        addPage("world", Ui.scroll(worldPage.root));
+        healthPage = new HealthPage(this);
+        addPage("health", Ui.scroll(healthPage.root));
         addPage("players", Ui.scroll(players.root));
         addPage("console", console.root);
         addPage("online", Ui.scroll(onlinePage.root));
@@ -107,7 +117,7 @@ final class App {
         show(Kit.hasServer() ? "home" : "servers");
         refreshAll();
         updateNavForServer();
-        new Timer(1000, e -> { refreshHeader(); dashboard.tick(); }).start();
+        new Timer(1000, e -> { refreshHeader(); dashboard.tick(); Presets.tick(server); worldPage.tick(); }).start();
         frame.setVisible(true);
 
         // app updates: say what's new after an update, then keep checking every few hours
@@ -317,8 +327,11 @@ final class App {
         addNav(items, "servers", "Servers", "servers");
         addNav(items, "home", "Dashboard", "home");
         addNav(items, "players", "Players", "players");
+        addNav(items, "map", "Map", "map");
+        addNav(items, "world", "World", "world");
         addNav(items, "mods", "Mods", "mods");
         addNav(items, "rules", "Rules", "rules");
+        addNav(items, "health", "Health", "health");
         addNav(items, "console", "Console", "console");
         addNav(items, "online", "Play online", "online");
         addNav(items, "settings", "Settings", "settings");
@@ -394,8 +407,9 @@ final class App {
     /** Mods only make sense on a modded server; most pages need a server to exist. */
     void updateNavForServer() {
         boolean has = Kit.hasServer();
-        for (String id : List.of("home", "players", "rules", "console", "settings")) if (nav.get(id) != null) nav.get(id).setVisible(has);
+        for (String id : List.of("home", "players", "world", "rules", "health", "console", "settings")) if (nav.get(id) != null) nav.get(id).setVisible(has);
         if (nav.get("mods") != null) nav.get("mods").setVisible(has && Kit.isFabric());
+        if (nav.get("map") != null) nav.get("map").setVisible(has && !Kit.isFabric());
         switcher.repaint();
         startBtn.setVisible(has);
         pill.setVisible(has);
@@ -420,6 +434,8 @@ final class App {
         settings.refresh();
         modsPage.refresh();
         rulesPage.refresh();
+        Game.clearHistory();
+        mapPage.reset();
         serversPage.refresh();
         if (Kit.hasServer()) {
             server.event(Server.Kind.SYSTEM, "Opened " + Kit.serverName() + "."
@@ -452,7 +468,7 @@ final class App {
             });
         }
 
-        @Override public Dimension getPreferredSize() { return new Dimension(200, 42); }
+        @Override public Dimension getPreferredSize() { return new Dimension(200, 38); }
 
         @Override protected void paintComponent(Graphics g) {
             Graphics2D g2 = (Graphics2D) g.create();
@@ -506,6 +522,9 @@ final class App {
             case "console" -> { pageTitle.setText("Console"); pageSub.setText("What's happening on the server, and a place to type commands"); console.focus(); }
             case "online" -> { pageTitle.setText("Play online"); pageSub.setText("Let friends join from anywhere, for free"); }
             case "rules" -> { pageTitle.setText("Rules"); pageSub.setText("Turn anti-cheat and game rules on or off"); rulesPage.refresh(); }
+            case "map" -> { pageTitle.setText("Map"); pageSub.setText("Where everyone is right now"); mapPage.refresh(); }
+            case "world" -> { pageTitle.setText("World"); pageSub.setText("Time, weather, presets, graves and deaths"); worldPage.refresh(); }
+            case "health" -> { pageTitle.setText("Health"); pageSub.setText("How well the server is running, and its logs"); healthPage.refresh(); }
             case "settings" -> { pageTitle.setText("Settings"); pageSub.setText("Game rules, memory, backups and updates"); settings.refresh(); }
             default -> { }
         }
@@ -591,6 +610,13 @@ final class App {
         onlinePage.refresh();
         settings.refreshState();
         if (rulesPage != null) rulesPage.serverChanged();
+        if (worldPage != null) worldPage.serverChanged();
+    }
+
+    /** Opens the Map page centred on a place. */
+    void showOnMap(double x, double z) {
+        show("map");
+        mapPage.centerOn(x, z);
     }
 
     static List<String> lanAddresses() {
@@ -1039,6 +1065,12 @@ final class App {
             list.repaint();
         }
 
+        /** The name the server uses for an online player (Bedrock players have a "." in front). */
+        private String onlineName(String n, String display) {
+            for (String o : server.online) if (o.equalsIgnoreCase(n) || o.equalsIgnoreCase("." + display) || o.equalsIgnoreCase(display)) return o;
+            return n;
+        }
+
         record PlayerInfo(String display, String game, boolean bedrock, String id, boolean listed) { }
 
         private static boolean isBedrockId(String id) { return id != null && id.startsWith("00000000-0000-0000-"); }
@@ -1078,6 +1110,9 @@ final class App {
                     .onClick(() -> { server.command((op ? "deop " : "op ") + n); later(this::refresh); });
             Ui.Btn kick = new Ui.Btn("Kick", Ui.Kind.SECONDARY).small()
                     .onClick(() -> server.command("kick " + n));
+            Ui.Btn manage = new Ui.Btn("Manage", Ui.Kind.PRIMARY).small().onClick(() -> PlayerTools.open(App.this, onlineName(n, display)));
+            manage.setToolTipText("Inventory, give items, teleport");
+            manage.setVisible(isOnline && serverOn);
             Ui.Btn remove = new Ui.Btn("Remove", Ui.Kind.SUBTLE).small().onClick(() -> {
                 if (!Dialogs.confirm(frame, "Remove " + display + "?", display + " won't be able to join anymore.",
                         "Remove", Ui.Kind.DANGER)) return;
@@ -1091,6 +1126,7 @@ final class App {
             kick.setEnabled(serverOn);
             remove.setEnabled(serverOn && p.listed());
             kick.setVisible(isOnline);
+            parts.add(manage);
             parts.add(admin);
             parts.add(kick);
             parts.add(remove);

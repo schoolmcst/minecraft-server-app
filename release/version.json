@@ -1,9 +1,12 @@
 {
-  "version": "5.2",
+  "version": "5.3",
   "file": "app.jar",
-  "sha256": "731e04fb6a96b3571c7bc04036a1ae0d1d2a02478fdefb812522e959820f357c",
+  "sha256": "e8eedfa884d2decacf2355ce0bd628547325337a56fde4bbce1b38ac69ae62ed",
   "minJava": 21,
   "notes": [
-    "Graves: when someone dies, their items wait for them in a grave where they died (works on Java, Bedrock and Xbox). Turn it off or change who can open graves on the Rules page"
+    "New Map page: a live map of your world with everyone's position, graves, spawn and places you mark. Right-click to teleport someone there.",
+    "New World page: day/night and weather buttons, presets (Hardcore weekend, Peaceful build day, PvP event) that switch back on their own, every grave with a Give back button, and a death log.",
+    "New Health page: server speed, memory and CPU over the last hour, plus old logs and crash reports explained in plain words.",
+    "Players page: Manage an online player to see their inventory and ender chest, give items from a picture list, or teleport them."
   ]
 }

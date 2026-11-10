@@ -1,5 +1,5 @@
 name: XrayWatch
-version: "1.2"
+version: "1.3"
 main: xraywatch.XrayWatch
 api-version: "1.13"
 description: X-ray detection, game client reports and graves for the Minecraft Server app.

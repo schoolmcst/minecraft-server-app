@@ -51,6 +51,7 @@ final class Server {
     long startedAt() { return startedAt; }
     long readyAt() { return readyAt; }
     boolean isRunning() { return state == State.RUNNING; }
+    Process process() { return proc; }
     boolean isBusy() { return state == State.PREPARING || state == State.STARTING || state == State.STOPPING; }
     synchronized List<Event> events() { return new ArrayList<>(events); }
 
@@ -509,6 +510,7 @@ final class Server {
                 event(Kind.SYSTEM, "Server is online (started in " + secs + "s). Waiting for players...");
                 onStarted.run();
                 Rules.applyAndAsk(this);
+                Presets.resume(this);
                 return;
             }
             if (level.equals("ERROR") && !msg.startsWith("[")) event(Kind.ERROR, msg);
@@ -516,6 +518,7 @@ final class Server {
         }
 
         if (!structured) return; // stack traces etc. stay in the full log
+        if (Game.line(msg, this)) return; // the plugin talking to the app (inventories, map drawing...)
 
         Matcher j = JOIN.matcher(msg);
         if (j.find()) {

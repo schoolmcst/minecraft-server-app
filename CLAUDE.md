@@ -43,9 +43,24 @@ XrayWatch 1.1 also logs "CLIENT player=X brand=Y" on join (Player.getClientBrand
 Graves (plugin/src/xraywatch/Graves.java, XrayWatch 1.2; settings graves.enabled default on, graves.unlock minutes,
 0 = owner only): on death items+XP go into a PLAYER_HEAD block (saved in plugins/XrayWatch/graves/*.grave as base64
 ItemStack.serializeAsBytes, survives restarts); owner uses or breaks it to collect (armor re-equipped); protected from
-explosions/pistons/liquids; logs "GRAVE made|opened" -> AntiCheat.graveLine feed lines. The plugin is installed when any
-of its jobs is on (AntiCheat.pluginNeeded); xray-detect=false in its config turns off only the mining checks.
-plugin/test/xraywatch/GraveSim.java tests graves (19 checks).
+explosions/pistons/liquids; logs "GRAVE made|opened|returned|return-later" -> AntiCheat.graveLine feed lines.
+xray-detect=false in its config turns off only the mining checks; map=false turns off map drawing.
+plugin/test/xraywatch/GraveSim.java tests graves (26 checks, incl. give-back and the presets' graves off).
+Live pages (5.3, XrayWatch 1.3, now always installed on survival servers): plugin/src/xraywatch/Live.java writes
+plugins/XrayWatch/live.json every 2 s (players+positions+health, TPS, MSPT, memory, CPU, worlds' time/weather/spawn, grave
+summary, map fill status), deaths.csv, items.txt, inv/<name>.json on "xw inv <name>" (logs "INV ready|offline"), and
+handles "xw tp <p> <x> <z> [world]", "xw spawn <p>", "xw grave return <id>" (owner offline = return-on-join), "xw graves
+on|off" (presets, not saved), "xw map fill <r>|stop". MapRender.java draws 256x256 PNG tiles (map/<world>/<tx>_<tz>.png)
+from BlockData.getMapColor around players (3 ms/tick budget) and, for "fill", loads already-generated chunks with
+getChunkAtAsync(x,z,false) (returns null for not-fully-generated chunks). Graves.java writes graves.json.
+App side: Game.java polls live.json (history of the last hour; modded servers get CPU from the process only), parses the
+plugin's INV/MAP/TP/GRAVES lines (hidden from the feed); MapPage, WorldPage (time/weather, Presets.java, graves, deaths),
+HealthPage (+LogHints.java), PlayerTools.java (player window, give dialog, teleports; "me" = app.me), Items.java (item names
+and pictures read from the owner's own .minecraft/versions/<v>/<v>.jar; -Dkit.minecraft overrides; never ship textures).
+Presets save what they replace in preset.saved/active/until and switch back on time, at the next start if the end passed
+while off, or by "Stop". Rules.ask also asks pvp, natural_health_regeneration and difficulty ("The difficulty is X").
+Checked on real Paper 26.3: time markers day/noon/night/midnight, "Set the weather to rain and thunder", game rules pvp
+and natural_health_regeneration exist; plugin bytecode identical when built against the real paper-api jar.
 anticheat.xray.seeds sets feature-seeds.generate-random-seeds-for-all (ores in new chunks stop matching the seed).
 
 ## Ship an update (every installed app downloads it the next time it opens)

@@ -44,8 +44,9 @@ final class AntiCheat {
         try { return Integer.parseInt(Kit.get("graves.unlock", "60").trim()); } catch (NumberFormatException e) { return 60; }
     }
 
-    /** XrayWatch runs when any of its jobs is on: X-ray detection, graves, or game-client checks. */
-    static boolean pluginNeeded() { return xrayDetect() || graves() || (applies() && (kickHacked() || kickModded())); }
+    /** XrayWatch always runs on survival servers: besides X-ray detection, graves and game-client checks it feeds the
+     *  app's Map, World, Health and player pages (Game.java). */
+    static boolean pluginNeeded() { return applies(); }
 
     static Path xrayWatchJar() { return Kit.plugins().resolve("XrayWatch.jar"); }
 
@@ -76,7 +77,8 @@ final class AntiCheat {
                             + "notify-admins=" + xrayAdmins() + "\n"
                             + "xray-detect=" + xrayDetect() + "\n"
                             + "graves=" + graves() + "\n"
-                            + "grave-unlock-minutes=" + graveUnlockMinutes() + "\n", StandardCharsets.UTF_8);
+                            + "grave-unlock-minutes=" + graveUnlockMinutes() + "\n"
+                            + "map=" + Kit.getBool("map.enabled", true) + "\n", StandardCharsets.UTF_8);
             return fresh ? (xrayDetect() ? "X-ray detection is on: the server now watches how players mine. " : "")
                     + (graves() ? "Graves are on: when someone dies, their items wait for them where they died." : "") : null;
         } catch (IOException e) {
@@ -422,16 +424,18 @@ final class AntiCheat {
 
     // ------------------------------------------------------------------ graves (XrayWatch "GRAVE" lines)
 
-    static final Pattern GRAVE = Pattern.compile("^\\[XrayWatch\\] GRAVE (made|opened) player=\\.?(\\S+)(?: owner=\\.?(\\S+))?(?: items=(\\d+))?"
+    static final Pattern GRAVE = Pattern.compile("^\\[XrayWatch\\] GRAVE (made|opened|returned|return-later)(?: player=\\.?(\\S+))?(?: owner=\\.?(\\S+))?(?: items=(\\d+))?"
             + "(?: xp=\\d+)? world=(\\S+) x=(-?\\d+) y=(-?\\d+) z=(-?\\d+)");
 
     /** A friendly activity line for a grave, or null if the line isn't about graves. */
     static String graveLine(String msg, java.util.function.UnaryOperator<String> nice) {
         Matcher m = GRAVE.matcher(msg);
         if (!m.find()) return null;
-        String who = nice.apply(m.group(2)), where = m.group(6) + " " + m.group(7) + " " + m.group(8)
+        String who = nice.apply(m.group(2) != null ? m.group(2) : m.group(3)), where = m.group(6) + " " + m.group(7) + " " + m.group(8)
                 + (m.group(5).contains("nether") ? " in the Nether" : m.group(5).contains("end") ? " in the End" : "");
         if (m.group(1).equals("made")) return who + " died. Their items (" + m.group(4) + ") are safe in a grave at " + where + ".";
+        if (m.group(1).equals("returned")) return who + " got the items from their grave at " + where + " back.";
+        if (m.group(1).equals("return-later")) return who + " isn't online, so they get the items from their grave the next time they join.";
         String owner = m.group(3) == null ? who : nice.apply(m.group(3));
         return owner.equalsIgnoreCase(who) ? who + " got their items back from their grave." : who + " opened " + owner + "'s grave.";
     }

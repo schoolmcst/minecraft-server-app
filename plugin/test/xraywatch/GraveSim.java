@@ -111,6 +111,47 @@ public class GraveSim {
     g4.graves.values().iterator().next().made -= 61 * 60_000L;
     click(g4, alex, W.getBlockAt(70, 70, 70));
     check(g4.graves.isEmpty() && alex.inv.slots.size() == 1, "after 60 minutes Alex can open Steve's grave");
+    // 10. the app's "Give back" button: owner online gets items now; offline gets them when they join
+    Map<UUID, Player> online = new HashMap<>();
+    org.bukkit.plugin.java.JavaPlugin.testServer = new Server() {
+      public org.bukkit.plugin.PluginManager getPluginManager() { return null; }
+      public Collection<? extends Player> getOnlinePlayers() { return online.values(); }
+      public Player getPlayer(UUID id) { return online.get(id); }
+      public World getWorld(String n) { return W; }
+      public org.bukkit.scheduler.BukkitScheduler getScheduler() { return new org.bukkit.scheduler.BukkitScheduler() {
+        public org.bukkit.scheduler.BukkitTask runTaskTimer(org.bukkit.plugin.Plugin p, Runnable r, long d, long q) { return null; }
+        public org.bukkit.scheduler.BukkitTask runTask(org.bukkit.plugin.Plugin p, Runnable r) { r.run(); return null; }
+        public org.bukkit.scheduler.BukkitTask runTaskLater(org.bukkit.plugin.Plugin p, Runnable r, long d) { r.run(); return null; } }; }
+    };
+    Graves g5 = graves(new File(dir, "y"), 60); P cara = new P("Cara"); cara.loc = new Location(W, 0, 70, 0);
+    die(g5, cara, 80, 70, 80, 7, new ItemStack(Material.DIAMOND_SWORD, 1));
+    online.put(cara.getUniqueId(), cara);
+    String id = g5.graves.values().iterator().next().id;
+    String r = g5.giveBack(id);
+    check(g5.graves.isEmpty() && cara.inv.slots.size() == 1 && cara.xp == 7 && W.getBlockAt(80, 70, 80).getType() == Material.AIR, "Give back (online): items + XP returned, grave removed: " + r.replaceAll("§.", ""));
+    die(g5, cara, 90, 70, 90, 0, new ItemStack(Material.DIRT, 3));
+    online.clear();
+    String id2 = g5.graves.values().iterator().next().id;
+    r = g5.giveBack(id2);
+    check(g5.graves.size() == 1 && g5.graves.values().iterator().next().returnOnJoin, "Give back (offline): waits for them: " + r.replaceAll("§.", ""));
+    Graves g6 = graves(new File(dir, "y"), 60);
+    check(g6.graves.values().iterator().next().returnOnJoin, "the wait survives a restart");
+    online.put(cara.getUniqueId(), cara);
+    g6.onJoin(new org.bukkit.event.player.PlayerJoinEvent(cara));
+    check(g6.graves.isEmpty() && cara.inv.slots.size() == 2, "they get the items when they join");
+    Thread.sleep(300);
+    String gj = new String(java.nio.file.Files.readAllBytes(new File(new File(dir, "y"), "graves.json").toPath()));
+    check(gj.contains("\"graves\":[]"), "graves.json is kept up to date: " + gj);
+
+    // 11. presets can switch graves off for a while
+    g6.active = false; P dan = new P("Dan");
+    PlayerDeathEvent off = die(g6, dan, 95, 70, 95, 0, new ItemStack(Material.DIRT, 1));
+    check(g6.graves.isEmpty() && off.getDrops().size() == 1, "graves switched off: items drop normally");
+    g6.active = true;
+    die(g6, dan, 95, 70, 95, 0, new ItemStack(Material.DIRT, 1), new ItemStack(Material.DIAMOND_SWORD, 1));
+    Thread.sleep(300);
+    gj = new String(java.nio.file.Files.readAllBytes(new File(new File(dir, "y"), "graves.json").toPath()));
+    check(gj.contains("\"owner\":\"Dan\"") && gj.contains("{\"id\":\"dirt\",\"n\":1}") && gj.contains("diamond_sword"), "graves.json lists the items: " + gj);
     System.out.println(fails == 0 ? "ALL PASSED" : fails + " FAILED");
   }
 }

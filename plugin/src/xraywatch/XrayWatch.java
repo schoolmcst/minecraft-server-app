@@ -24,7 +24,8 @@
 // forge, lunarclient... and some hacked clients name themselves). It logs "CLIENT player=... brand=..." and the app
 // decides what to do (show it, warn, or kick). Bedrock/Xbox players (Geyser) are skipped.
 //
-// And it makes graves: see Graves.java.
+// And it makes graves (Graves.java), and feeds the app's live pages: map, player positions, inventories, server
+// speed, deaths (Live.java, MapRender.java).
 
 package xraywatch;
 
@@ -46,7 +47,7 @@ import org.bukkit.event.player.PlayerJoinEvent;
 import org.bukkit.plugin.java.JavaPlugin;
 
 public final class XrayWatch extends JavaPlugin implements Listener {
-    static final String VERSION = "1.2";
+    static final String VERSION = "1.3";
 
     static final Set<String> FILLER = Set.of("STONE", "DEEPSLATE", "TUFF", "ANDESITE", "DIORITE", "GRANITE", "COBBLED_DEEPSLATE",
             "NETHERRACK", "BASALT", "BLACKSTONE", "SMOOTH_BASALT", "CALCITE", "DRIPSTONE_BLOCK", "GRAVEL", "SOUL_SAND", "SOUL_SOIL",
@@ -69,11 +70,13 @@ public final class XrayWatch extends JavaPlugin implements Listener {
     int suspiciousScore = 60, likelyScore = 80; // score = -20 * log10(chance it's luck)
     int minBlocks = 40, minVeins = 4, windowMinutes = 30, longWindowMinutes = 180;
     boolean notifyAdmins = true;
-    boolean graves = true, xrayDetect = true;
+    boolean gravesOn = true, xrayDetect = true, mapOn = true;
     int graveUnlockMinutes = 60;
 
     final Map<UUID, Tracker> trackers = new ConcurrentHashMap<>();
     private ScheduledExecutorService saver;
+    Graves graves;
+    Live live;
     private File folder;
 
     // ------------------------------------------------------------------ lifecycle
@@ -82,24 +85,57 @@ public final class XrayWatch extends JavaPlugin implements Listener {
         folder = getDataFolder();
         folder.mkdirs();
         loadSettings();
-        getServer().getPluginManager().registerEvents(this, this);
-        if (graves) {
-            getServer().getPluginManager().registerEvents(new Graves(this, folder, graveUnlockMinutes), this);
-            getLogger().info("Graves are on" + (graveUnlockMinutes > 0 ? " (anyone can open one after " + graveUnlockMinutes + " minutes)" : " (only the owner can open one)"));
-        }
         saver = Executors.newSingleThreadScheduledExecutor(r -> {
             Thread t = new Thread(r, "XrayWatch-save");
             t.setDaemon(true);
             return t;
         });
+        getServer().getPluginManager().registerEvents(this, this);
+        if (gravesOn) {
+            graves = new Graves(this, folder, graveUnlockMinutes);
+            getServer().getPluginManager().registerEvents(graves, this);
+            getLogger().info("Graves are on" + (graveUnlockMinutes > 0 ? " (anyone can open one after " + graveUnlockMinutes + " minutes)" : " (only the owner can open one)"));
+        } else {
+            new File(folder, "graves.json").delete();
+        }
+        live = new Live(this, folder);
+        getServer().getPluginManager().registerEvents(live, this);
+        live.writeItems();
+        getServer().getScheduler().runTaskTimer(this, live::tick, 40L, 40L);
+        if (mapOn) {
+            live.map = new MapRender(this, folder);
+            getServer().getScheduler().runTaskTimer(this, live.map::tick, 60L, 1L);
+        }
         saver.scheduleWithFixedDelay(this::saveReport, 20, 30, TimeUnit.SECONDS);
         getLogger().info("Watching for X-ray (version " + VERSION + "; honest rate " + honestRate + " veins per 100 blocks, "
                 + "suspicious at score " + suspiciousScore + ", very likely at " + likelyScore + ")");
     }
 
     @Override public void onDisable() {
-        if (saver != null) saver.shutdownNow();
+        if (live != null && live.map != null) live.map.shutdown();
+        if (saver != null) {
+            saver.shutdown();
+            try { saver.awaitTermination(5, TimeUnit.SECONDS); } catch (InterruptedException ignored) { }
+        }
         saveReport();
+        new File(folder, "live.json").delete(); // the app knows the server is gone
+    }
+
+    /** Runs file writing off the game thread. */
+    void async(Runnable r) {
+        ScheduledExecutorService s = saver;
+        if (s == null || s.isShutdown()) { r.run(); return; }
+        try { s.execute(r); } catch (RejectedExecutionException e) { r.run(); }
+    }
+
+    /** Writes a file the app reads, all at once (the app never sees half a file). */
+    static void writeAtomic(File f, String content) {
+        try {
+            f.getParentFile().mkdirs();
+            File tmp = new File(f.getParentFile(), f.getName() + ".tmp");
+            Files.write(tmp.toPath(), content.getBytes(StandardCharsets.UTF_8));
+            Files.move(tmp.toPath(), f.toPath(), StandardCopyOption.REPLACE_EXISTING);
+        } catch (IOException ignored) { }
     }
 
     void loadSettings() {
@@ -119,7 +155,8 @@ public final class XrayWatch extends JavaPlugin implements Listener {
         windowMinutes = (int) num(p, "window-minutes", windowMinutes);
         longWindowMinutes = Math.max(windowMinutes, (int) num(p, "long-window-minutes", longWindowMinutes));
         notifyAdmins = !"false".equalsIgnoreCase(p.getProperty("notify-admins", "true"));
-        graves = !"false".equalsIgnoreCase(p.getProperty("graves", "true"));
+        gravesOn = !"false".equalsIgnoreCase(p.getProperty("graves", "true"));
+        mapOn = !"false".equalsIgnoreCase(p.getProperty("map", "true"));
         xrayDetect = !"false".equalsIgnoreCase(p.getProperty("xray-detect", "true"));
         graveUnlockMinutes = (int) num(p, "grave-unlock-minutes", graveUnlockMinutes);
     }
@@ -351,6 +388,7 @@ public final class XrayWatch extends JavaPlugin implements Listener {
 
     @Override public boolean onCommand(CommandSender sender, Command command, String label, String[] args) {
         if (!sender.isOp()) { sender.sendMessage("§cOnly admins can use this."); return true; }
+        if (live != null && live.command(sender, args)) return true;
         long now = System.currentTimeMillis();
         if (args.length >= 2 && args[0].equalsIgnoreCase("reset")) {
             for (Tracker t : trackers.values()) synchronized (t) {
