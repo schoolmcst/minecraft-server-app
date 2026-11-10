@@ -37,6 +37,16 @@ final class AntiCheat {
     /** Paper's feature-seeds: ores in newly generated areas no longer match the world seed, so seed-based ore finders miss. */
     static boolean shuffleOres() { return applies() && Kit.getBool("anticheat.xray.seeds", true); }
 
+    /** Graves: items wait where you died (XrayWatch makes them). Settings: graves.enabled, graves.unlock (minutes, 0 = owner only). */
+    static boolean graves() { return applies() && Kit.getBool("graves.enabled", true); }
+
+    static int graveUnlockMinutes() {
+        try { return Integer.parseInt(Kit.get("graves.unlock", "60").trim()); } catch (NumberFormatException e) { return 60; }
+    }
+
+    /** XrayWatch runs when any of its jobs is on: X-ray detection, graves, or game-client checks. */
+    static boolean pluginNeeded() { return xrayDetect() || graves() || (applies() && (kickHacked() || kickModded())); }
+
     static Path xrayWatchJar() { return Kit.plugins().resolve("XrayWatch.jar"); }
 
     static Path xrayWatchDir() { return Kit.plugins().resolve("XrayWatch"); }
@@ -44,8 +54,8 @@ final class AntiCheat {
     /** Installs, updates or removes XrayWatch and writes its settings. Returns a feed line or null. */
     static String syncXrayWatch() {
         try {
-            if (!xrayDetect()) {
-                if (Files.deleteIfExists(xrayWatchJar())) return "X-ray detection is off.";
+            if (!pluginNeeded()) {
+                Files.deleteIfExists(xrayWatchJar());
                 return null;
             }
             byte[] jar;
@@ -63,8 +73,12 @@ final class AntiCheat {
             Files.createDirectories(xrayWatchDir());
             Files.writeString(xrayWatchDir().resolve("config.properties"),
                     "# Written by the Minecraft Server app (Rules page). Changes here are replaced on the next start.\n"
-                            + "notify-admins=" + xrayAdmins() + "\n", StandardCharsets.UTF_8);
-            return fresh ? "X-ray detection is on: the server now watches how players mine." : null;
+                            + "notify-admins=" + xrayAdmins() + "\n"
+                            + "xray-detect=" + xrayDetect() + "\n"
+                            + "graves=" + graves() + "\n"
+                            + "grave-unlock-minutes=" + graveUnlockMinutes() + "\n", StandardCharsets.UTF_8);
+            return fresh ? (xrayDetect() ? "X-ray detection is on: the server now watches how players mine. " : "")
+                    + (graves() ? "Graves are on: when someone dies, their items wait for them where they died." : "") : null;
         } catch (IOException e) {
             return "Couldn't set up X-ray detection: " + Kit.describe(e);
         }
@@ -404,6 +418,22 @@ final class AntiCheat {
     static String kickReason(ClientKind k) {
         return k == ClientKind.HACKED ? "Hacked clients aren't allowed on this server."
                 : "This server only allows normal Minecraft (or Lunar/Badlion/Feather). Turn off your mods to join.";
+    }
+
+    // ------------------------------------------------------------------ graves (XrayWatch "GRAVE" lines)
+
+    static final Pattern GRAVE = Pattern.compile("^\\[XrayWatch\\] GRAVE (made|opened) player=\\.?(\\S+)(?: owner=\\.?(\\S+))?(?: items=(\\d+))?"
+            + "(?: xp=\\d+)? world=(\\S+) x=(-?\\d+) y=(-?\\d+) z=(-?\\d+)");
+
+    /** A friendly activity line for a grave, or null if the line isn't about graves. */
+    static String graveLine(String msg, java.util.function.UnaryOperator<String> nice) {
+        Matcher m = GRAVE.matcher(msg);
+        if (!m.find()) return null;
+        String who = nice.apply(m.group(2)), where = m.group(6) + " " + m.group(7) + " " + m.group(8)
+                + (m.group(5).contains("nether") ? " in the Nether" : m.group(5).contains("end") ? " in the End" : "");
+        if (m.group(1).equals("made")) return who + " died. Their items (" + m.group(4) + ") are safe in a grave at " + where + ".";
+        String owner = m.group(3) == null ? who : nice.apply(m.group(3));
+        return owner.equalsIgnoreCase(who) ? who + " got their items back from their grave." : who + " opened " + owner + "'s grave.";
     }
 
     // ------------------------------------------------------------------ XrayWatch flags

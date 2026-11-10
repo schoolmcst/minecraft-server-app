@@ -1,10 +1,9 @@
 {
-  "version": "5.1",
+  "version": "5.2",
   "file": "app.jar",
-  "sha256": "14d711de6ebb05b8022972b58886afa00d05b7b8f26fda1eda28c79fa70e21cd",
+  "sha256": "731e04fb6a96b3571c7bc04036a1ae0d1d2a02478fdefb812522e959820f357c",
   "minJava": 21,
   "notes": [
-    "Game clients: the Players page shows what each Java player is playing on (normal Minecraft, Fabric, Lunar...), and known hacked clients like Meteor and Wurst get kicked",
-    "New switch on the Rules page: Only allow normal Minecraft"
+    "Graves: when someone dies, their items wait for them in a grave where they died (works on Java, Bedrock and Xbox). Turn it off or change who can open graves on the Rules page"
   ]
 }

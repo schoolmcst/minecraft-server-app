@@ -547,6 +547,11 @@ final class Server {
             onClient(cl.group(1), cl.group(2).trim(), msg.contains("CLIENT player=."));
             return;
         }
+        String grave = AntiCheat.graveLine(msg, Server::nice);
+        if (grave != null) {
+            event(Kind.INFO, grave);
+            return;
+        }
         AntiCheat.XrayFlag xf = AntiCheat.xrayFlag(msg, Server::nice);
         if (xf != null) {
             if (AntiCheat.alerts()) event(xf.likely() ? Kind.ERROR : Kind.WARN, xf.feedLine());

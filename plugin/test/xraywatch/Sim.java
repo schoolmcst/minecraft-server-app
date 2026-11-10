@@ -12,18 +12,23 @@ public class Sim {
   static byte at(int x, int y, int z) { return in(x, y, z) ? grid[idx(x, y, z)] : 1; }
   static void set(int x, int y, int z, byte v) { if (in(x, y, z)) grid[idx(x, y, z)] = v; }
 
-  static final World WORLD = new World() { public String getName() { return "world"; } public Environment getEnvironment() { return Environment.NORMAL; } };
+  static final World WORLD = new World() { public String getName() { return "world"; } public Environment getEnvironment() { return Environment.NORMAL; }
+    public Block getBlockAt(int x, int y, int z) { return new B(x, y, z); } public org.bukkit.entity.Item dropItemNaturally(Location l, org.bukkit.inventory.ItemStack i) { return null; }
+    public Location getSpawnLocation() { return null; } public int getMinHeight() { return -64; } public int getMaxHeight() { return 320; } };
   record B(int x, int y, int z) implements Block {
     public Material getType() { return switch (at(x, y, z)) { case 0 -> Material.CAVE_AIR; case 2 -> Material.DEEPSLATE_DIAMOND_ORE; case 3 -> Material.LAVA; default -> Material.DEEPSLATE; }; }
     public int getX() { return x; } public int getY() { return y; } public int getZ() { return z; }
     public World getWorld() { return WORLD; }
     public Block getRelative(int a, int b, int c) { return new B(x + a, y + b, z + c); }
+    public void setType(Material m) { } public Location getLocation() { return new Location(WORLD, x, y, z); }
+    public boolean isEmpty() { return at(x, y, z) == 0; } public boolean isLiquid() { return at(x, y, z) == 3; } public boolean isReplaceable() { return isEmpty() || isLiquid(); }
   }
   static final class P implements Player {
     final String name; final UUID id = UUID.randomUUID(); final List<String> got = new ArrayList<>();
     P(String n) { name = n; }
     public UUID getUniqueId() { return id; } public GameMode getGameMode() { return GameMode.SURVIVAL; }
     public void sendMessage(String m) { got.add(m); } public boolean isOp() { return false; } public String getName() { return name; }
+    public String getClientBrandName() { return "vanilla"; } public Location getLocation() { return null; } public void giveExp(int a) { } public org.bukkit.inventory.PlayerInventory getInventory() { return null; }
   }
 
   static boolean DIAGONAL = true;
@@ -129,7 +134,8 @@ public class Sim {
     List<String> flags = new ArrayList<>();
     log.setUseParentHandlers(false);
     log.addHandler(new java.util.logging.Handler() { public void publish(java.util.logging.LogRecord r) { if (r.getMessage().startsWith("FLAG")) flags.add(r.getMessage()); } public void flush() {} public void close() {} });
-    JavaPlugin.testServer = new Server() { public org.bukkit.plugin.PluginManager getPluginManager() { return (l, pl) -> {}; } public Collection<? extends Player> getOnlinePlayers() { return List.of(); } };
+    JavaPlugin.testServer = new Server() { public org.bukkit.plugin.PluginManager getPluginManager() { return (l, pl) -> {}; } public Collection<? extends Player> getOnlinePlayers() { return List.of(); }
+      public Player getPlayer(UUID id) { return null; } public World getWorld(String n) { return WORLD; } };
     for (int seed = 1; seed <= 4; seed++) {
       makeWorld(seed, density, 1.2);
       plugin = new XrayWatch(); plugin.onEnable(); flags.clear();

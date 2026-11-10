@@ -23,6 +23,8 @@
 // It also reports which game client each Java player joined with (the "brand" their game sends: vanilla, fabric,
 // forge, lunarclient... and some hacked clients name themselves). It logs "CLIENT player=... brand=..." and the app
 // decides what to do (show it, warn, or kick). Bedrock/Xbox players (Geyser) are skipped.
+//
+// And it makes graves: see Graves.java.
 
 package xraywatch;
 
@@ -44,7 +46,7 @@ import org.bukkit.event.player.PlayerJoinEvent;
 import org.bukkit.plugin.java.JavaPlugin;
 
 public final class XrayWatch extends JavaPlugin implements Listener {
-    static final String VERSION = "1.1";
+    static final String VERSION = "1.2";
 
     static final Set<String> FILLER = Set.of("STONE", "DEEPSLATE", "TUFF", "ANDESITE", "DIORITE", "GRANITE", "COBBLED_DEEPSLATE",
             "NETHERRACK", "BASALT", "BLACKSTONE", "SMOOTH_BASALT", "CALCITE", "DRIPSTONE_BLOCK", "GRAVEL", "SOUL_SAND", "SOUL_SOIL",
@@ -67,6 +69,8 @@ public final class XrayWatch extends JavaPlugin implements Listener {
     int suspiciousScore = 60, likelyScore = 80; // score = -20 * log10(chance it's luck)
     int minBlocks = 40, minVeins = 4, windowMinutes = 30, longWindowMinutes = 180;
     boolean notifyAdmins = true;
+    boolean graves = true, xrayDetect = true;
+    int graveUnlockMinutes = 60;
 
     final Map<UUID, Tracker> trackers = new ConcurrentHashMap<>();
     private ScheduledExecutorService saver;
@@ -79,6 +83,10 @@ public final class XrayWatch extends JavaPlugin implements Listener {
         folder.mkdirs();
         loadSettings();
         getServer().getPluginManager().registerEvents(this, this);
+        if (graves) {
+            getServer().getPluginManager().registerEvents(new Graves(this, folder, graveUnlockMinutes), this);
+            getLogger().info("Graves are on" + (graveUnlockMinutes > 0 ? " (anyone can open one after " + graveUnlockMinutes + " minutes)" : " (only the owner can open one)"));
+        }
         saver = Executors.newSingleThreadScheduledExecutor(r -> {
             Thread t = new Thread(r, "XrayWatch-save");
             t.setDaemon(true);
@@ -111,6 +119,9 @@ public final class XrayWatch extends JavaPlugin implements Listener {
         windowMinutes = (int) num(p, "window-minutes", windowMinutes);
         longWindowMinutes = Math.max(windowMinutes, (int) num(p, "long-window-minutes", longWindowMinutes));
         notifyAdmins = !"false".equalsIgnoreCase(p.getProperty("notify-admins", "true"));
+        graves = !"false".equalsIgnoreCase(p.getProperty("graves", "true"));
+        xrayDetect = !"false".equalsIgnoreCase(p.getProperty("xray-detect", "true"));
+        graveUnlockMinutes = (int) num(p, "grave-unlock-minutes", graveUnlockMinutes);
     }
 
     private static double num(Properties p, String k, double def) {
@@ -144,6 +155,7 @@ public final class XrayWatch extends JavaPlugin implements Listener {
 
     @EventHandler(priority = EventPriority.MONITOR, ignoreCancelled = true)
     public void onBreak(BlockBreakEvent e) {
+        if (!xrayDetect) return;
         Player p = e.getPlayer();
         if (p == null) return;
         String mode = String.valueOf(p.getGameMode());

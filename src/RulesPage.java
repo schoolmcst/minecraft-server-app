@@ -21,7 +21,11 @@ final class RulesPage {
     private final Ui.Switch grim = new Ui.Switch(true), xray = new Ui.Switch(true), nether = new Ui.Switch(true),
             strong = new Ui.Switch(false), alerts = new Ui.Switch(true), callout = new Ui.Switch(true),
             detect = new Ui.Switch(true), admins = new Ui.Switch(true), seeds = new Ui.Switch(true),
-            kickHacked = new Ui.Switch(true), vanillaOnly = new Ui.Switch(false);
+            kickHacked = new Ui.Switch(true), vanillaOnly = new Ui.Switch(false), graves = new Ui.Switch(true);
+    private static final List<String> UNLOCK = List.of("15 minutes", "30 minutes", "1 hour", "2 hours", "Never (only the owner)");
+    private static final int[] UNLOCK_MIN = {15, 30, 60, 120, 0};
+    private final Ui.Choice unlock = new Ui.Choice(UNLOCK, "1 hour");
+    private final Ui.Card gravesCard = new Ui.Card();
     private final XrayReport report;
     private final Ui.Field calloutText = new Ui.Field(AntiCheat.DEFAULT_CALLOUT, 24);
     private final JLabel calloutSaved = Ui.label(" ", Ui.font(12.5f), Ui.GREEN_HI);
@@ -115,11 +119,30 @@ final class RulesPage {
         }
         rules.add(rs);
 
+        acSwitch(graves, "graves.enabled", true);
+        graves.onChange(on -> { unlock.setEnabled(on); unlock.repaint(); });
+        unlock.onChange(v -> {
+            int i = UNLOCK.indexOf(v);
+            Kit.set("graves.unlock", String.valueOf(UNLOCK_MIN[Math.max(0, i)]));
+            Server.State st = app.server.state();
+            if (st == Server.State.STOPPED || st == Server.State.CRASHED) AntiCheat.sync((t, f) -> { });
+            else restartNeeded = true;
+            refreshBanner();
+        });
+        gravesCard.add(new Ui.Stack(14)
+                .put(Ui.row(10, Ui.cardTitle("Graves"), Ui.tag("Java + Bedrock + Xbox", Ui.MUTED), Ui.glue()))
+                .put(row(graves, "Keep items safe in a grave", "When someone dies, their items and XP go into a grave (a head) where they "
+                        + "died instead of dropping and disappearing. They get the coordinates in chat, and use or break the grave to get "
+                        + "everything back, with armor put straight back on. Creepers, lava and water can't destroy it. Not needed if "
+                        + "\"Keep items when you die\" is on."))
+                .put(Ui.row(10, Box.createHorizontalStrut(58), Ui.label("Other players can open it after", Ui.font(13.5f), Ui.MUTED), unlock, Ui.glue())));
+
         report = new XrayReport(app);
 
         Ui.Stack page = new Ui.Stack(16);
         page.put(banner);
         page.put(antiCheatCard);
+        page.put(gravesCard);
         page.put(report.card);
         page.put(rules);
         root.add(page, BorderLayout.NORTH);
@@ -165,6 +188,12 @@ final class RulesPage {
         admins.setEnabled(detect.isOn());
         seeds.setOn(Kit.getBool("anticheat.xray.seeds", true));
         kickHacked.setOn(AntiCheat.kickHacked());
+        gravesCard.setVisible(AntiCheat.applies());
+        graves.setOn(Kit.getBool("graves.enabled", true));
+        int um = AntiCheat.graveUnlockMinutes(), ui = 2;
+        for (int i = 0; i < UNLOCK_MIN.length; i++) if (UNLOCK_MIN[i] == um) ui = i;
+        unlock.setValue(UNLOCK.get(ui));
+        unlock.setEnabled(graves.isOn());
         vanillaOnly.setOn(AntiCheat.kickModded());
         report.card.setVisible(AntiCheat.applies());
         report.refresh();

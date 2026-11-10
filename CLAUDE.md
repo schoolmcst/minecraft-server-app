@@ -40,6 +40,12 @@ to a build against the real paper-api 26.3 jar). plugin/test/xraywatch/Sim.java 
 XrayWatch 1.1 also logs "CLIENT player=X brand=Y" on join (Player.getClientBrandName); Server.onClient classifies it
 (AntiCheat.kindOf: NORMAL/PVP/MODDED/HACKED by name list), shows it on the Players page, kicks HACKED
 (anticheat.clients.kick, default on) and MODDED when anticheat.clients.vanillaOnly is on. Bedrock is skipped.
+Graves (plugin/src/xraywatch/Graves.java, XrayWatch 1.2; settings graves.enabled default on, graves.unlock minutes,
+0 = owner only): on death items+XP go into a PLAYER_HEAD block (saved in plugins/XrayWatch/graves/*.grave as base64
+ItemStack.serializeAsBytes, survives restarts); owner uses or breaks it to collect (armor re-equipped); protected from
+explosions/pistons/liquids; logs "GRAVE made|opened" -> AntiCheat.graveLine feed lines. The plugin is installed when any
+of its jobs is on (AntiCheat.pluginNeeded); xray-detect=false in its config turns off only the mining checks.
+plugin/test/xraywatch/GraveSim.java tests graves (19 checks).
 anticheat.xray.seeds sets feature-seeds.generate-random-seeds-for-all (ores in new chunks stop matching the seed).
 
 ## Ship an update (every installed app downloads it the next time it opens)

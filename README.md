@@ -64,6 +64,13 @@ Players page shows it, and known hacked clients (like Meteor or Wurst) are kicke
 Minecraft** on the Rules page to also kick modded games. Careful cheaters can hide their client, so the rest of the
 anti-cheat still watches how everyone plays.
 
+## Graves
+
+On survival servers, when someone dies their items and XP go into a grave (a head) where they died, instead of dropping
+and disappearing. They get the coordinates in chat, then use or break the grave to get everything back (armor goes
+straight back on). It works for Java, Bedrock and Xbox players. Only the owner can open it at first; after an hour (you
+can change this on the **Rules** page) anyone can. Creepers, lava and water can't destroy graves.
+
 ## Updates
 
 - **The app** checks for a new version when it opens and every few hours, and installs it by itself.
