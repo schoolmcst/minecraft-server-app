@@ -352,6 +352,60 @@ final class AntiCheat {
         return "hacks";
     }
 
+    // ------------------------------------------------------------------ game clients (XrayWatch "CLIENT" lines)
+
+    /** "[XrayWatch] CLIENT player=Steve brand=fabric" */
+    static final Pattern CLIENT = Pattern.compile("^\\[XrayWatch\\] CLIENT player=\\.?(\\S+) brand=(.*)$");
+
+    enum ClientKind { NORMAL, PVP, MODDED, HACKED, UNKNOWN, BEDROCK }
+
+    /** Hacked clients that put their own name in the brand. Careful cheaters hide it, so this only catches the careless. */
+    static final List<String> HACKED = List.of("meteor", "wurst", "liquidbounce", "impact", "aristois", "rusherhack", "future",
+            "inertia", "sigma", "novoline", "kami", "salhack", "phobos", "konas", "bleachhack", "thunderhack", "prestige",
+            "boze", "coffee", "lambda", "3arthh4ck", "earthhack", "forgehax", "wolfram", "doomsday", "argon", "vape");
+    /** Well-known PvP/performance clients that are fine on most servers. */
+    static final List<String> PVP = List.of("lunarclient", "lunar", "badlion", "feather", "labymod", "pvplounge", "salwyrr");
+
+    static ClientKind kindOf(String brand) {
+        if (brand == null || brand.isBlank() || brand.equalsIgnoreCase("unknown")) return ClientKind.UNKNOWN;
+        String b = brand.toLowerCase(Locale.ROOT);
+        if (b.contains("geyser") || b.contains("floodgate")) return ClientKind.BEDROCK;
+        for (String h : HACKED) if (b.contains(h)) return ClientKind.HACKED;
+        for (String v : PVP) if (b.contains(v)) return ClientKind.PVP;
+        if (b.equals("vanilla")) return ClientKind.NORMAL;
+        if (b.contains("fabric") || b.contains("forge") || b.contains("quilt") || b.contains("optifine")) return ClientKind.MODDED;
+        return ClientKind.MODDED; // anything else isn't plain Minecraft
+    }
+
+    /** A short, friendly name for the client, e.g. "Fabric", "Lunar Client", "Meteor (hacked client)". */
+    static String clientLabel(String brand) {
+        String b = brand == null ? "" : brand.trim();
+        String l = b.toLowerCase(Locale.ROOT);
+        return switch (kindOf(b)) {
+            case NORMAL -> "Normal Minecraft";
+            case BEDROCK -> "Bedrock";
+            case UNKNOWN -> "Unknown game";
+            case PVP -> l.contains("lunar") ? "Lunar Client" : l.contains("badlion") ? "Badlion" : l.contains("feather") ? "Feather"
+                    : l.contains("laby") ? "LabyMod" : b;
+            case HACKED -> {
+                for (String h : HACKED) if (l.contains(h)) yield Character.toUpperCase(h.charAt(0)) + h.substring(1) + " (hacked client)";
+                yield b + " (hacked client)";
+            }
+            case MODDED -> l.contains("fabric") ? "Fabric (modded)" : l.contains("neoforge") ? "NeoForge (modded)"
+                    : l.contains("forge") ? "Forge (modded)" : l.contains("quilt") ? "Quilt (modded)" : b + " (modded)";
+        };
+    }
+
+    static boolean kickHacked() { return Kit.getBool("anticheat.clients.kick", true); }
+
+    /** Only allow normal Minecraft (and well-known PvP clients): kicks Fabric/Forge and unknown modded games. */
+    static boolean kickModded() { return Kit.getBool("anticheat.clients.vanillaOnly", false); }
+
+    static String kickReason(ClientKind k) {
+        return k == ClientKind.HACKED ? "Hacked clients aren't allowed on this server."
+                : "This server only allows normal Minecraft (or Lunar/Badlion/Feather). Turn off your mods to join.";
+    }
+
     // ------------------------------------------------------------------ XrayWatch flags
 
     /** "[XrayWatch] FLAG likely player=Steve score=93 veins=8 targeted=6 weighted=8.0 blocks=180 tunnel=22 minutes=30 world=world x=1 y=-58 z=2 ore=..." */

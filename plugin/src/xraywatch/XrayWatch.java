@@ -19,6 +19,10 @@
 // When a player crosses "suspicious" or "very likely", it logs a FLAG line (the app turns it into a message),
 // tells online admins, and keeps a history of every vein found in plugins/XrayWatch/finds.csv for checking.
 // /xraywatch (or /xw) [player | reset <player>] shows the numbers in game (admins only).
+//
+// It also reports which game client each Java player joined with (the "brand" their game sends: vanilla, fabric,
+// forge, lunarclient... and some hacked clients name themselves). It logs "CLIENT player=... brand=..." and the app
+// decides what to do (show it, warn, or kick). Bedrock/Xbox players (Geyser) are skipped.
 
 package xraywatch;
 
@@ -36,10 +40,11 @@ import org.bukkit.event.EventHandler;
 import org.bukkit.event.EventPriority;
 import org.bukkit.event.Listener;
 import org.bukkit.event.block.BlockBreakEvent;
+import org.bukkit.event.player.PlayerJoinEvent;
 import org.bukkit.plugin.java.JavaPlugin;
 
 public final class XrayWatch extends JavaPlugin implements Listener {
-    static final String VERSION = "1.0";
+    static final String VERSION = "1.1";
 
     static final Set<String> FILLER = Set.of("STONE", "DEEPSLATE", "TUFF", "ANDESITE", "DIORITE", "GRANITE", "COBBLED_DEEPSLATE",
             "NETHERRACK", "BASALT", "BLACKSTONE", "SMOOTH_BASALT", "CALCITE", "DRIPSTONE_BLOCK", "GRAVEL", "SOUL_SAND", "SOUL_SOIL",
@@ -110,6 +115,29 @@ public final class XrayWatch extends JavaPlugin implements Listener {
 
     private static double num(Properties p, String k, double def) {
         try { return Double.parseDouble(p.getProperty(k, String.valueOf(def)).trim()); } catch (NumberFormatException e) { return def; }
+    }
+
+    // ------------------------------------------------------------------ game client
+
+    @EventHandler(priority = EventPriority.MONITOR)
+    public void onJoin(PlayerJoinEvent e) {
+        Player p = e.getPlayer();
+        if (p == null) return;
+        if (!reportBrand(p) && saver != null) {
+            // the game sometimes tells the server its name a moment after joining
+            saver.schedule(() -> { if (!reportBrand(p)) getLogger().info("CLIENT player=" + p.getName() + " brand=unknown"); }, 3, TimeUnit.SECONDS);
+        }
+    }
+
+    /** Logs the player's game client; false if the game hasn't said yet. */
+    boolean reportBrand(Player p) {
+        String brand;
+        try { brand = p.getClientBrandName(); } catch (Throwable t) { return true; } // older server without the method
+        if (brand == null || brand.isBlank()) return false;
+        brand = brand.replaceAll("[\\r\\n]", " ").trim();
+        if (brand.length() > 64) brand = brand.substring(0, 64);
+        getLogger().info("CLIENT player=" + p.getName() + " brand=" + brand);
+        return true;
     }
 
     // ------------------------------------------------------------------ watching

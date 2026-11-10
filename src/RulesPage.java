@@ -20,7 +20,8 @@ final class RulesPage {
 
     private final Ui.Switch grim = new Ui.Switch(true), xray = new Ui.Switch(true), nether = new Ui.Switch(true),
             strong = new Ui.Switch(false), alerts = new Ui.Switch(true), callout = new Ui.Switch(true),
-            detect = new Ui.Switch(true), admins = new Ui.Switch(true), seeds = new Ui.Switch(true);
+            detect = new Ui.Switch(true), admins = new Ui.Switch(true), seeds = new Ui.Switch(true),
+            kickHacked = new Ui.Switch(true), vanillaOnly = new Ui.Switch(false);
     private final XrayReport report;
     private final Ui.Field calloutText = new Ui.Field(AntiCheat.DEFAULT_CALLOUT, 24);
     private final JLabel calloutSaved = Ui.label(" ", Ui.font(12.5f), Ui.GREEN_HI);
@@ -54,6 +55,8 @@ final class RulesPage {
         acSwitch(admins, "anticheat.xray.admins", true);
         acSwitch(seeds, "anticheat.xray.seeds", true);
         detect.onChange(on -> { admins.setEnabled(on); admins.repaint(); });
+        kickHacked.onChange(on -> Kit.set("anticheat.clients.kick", on));
+        vanillaOnly.onChange(on -> Kit.set("anticheat.clients.vanillaOnly", on));
         alerts.onChange(on -> Kit.set("anticheat.alerts", on));
         callout.onChange(on -> { Kit.set("anticheat.callout", on); calloutText.setEnabled(on); });
         calloutText.setMaximumSize(new Dimension(360, 40));
@@ -85,6 +88,11 @@ final class RulesPage {
         ac.put(row(admins, "Tell admins in the game", "Admins (ops) get a private message in chat when someone is flagged."));
         ac.put(row(seeds, "Shuffle ores in new areas", "Ores in newly explored land no longer match the world seed, so seed-based ore "
                 + "finders (a kind of X-ray that works even when ores are hidden) point to the wrong places."));
+        ac.put(row(kickHacked, "Kick hacked clients", "When a Java player joins, their game says what it is (normal Minecraft, Fabric, "
+                + "Lunar Client...). Some hacked clients like Meteor or Wurst name themselves, and get kicked. You can see everyone's game "
+                + "on the Players page. Careful cheaters can hide this, so the anti-cheat above still watches how they play."));
+        ac.put(row(vanillaOnly, "Only allow normal Minecraft", "Also kicks players using modded games (Fabric, Forge). Lunar Client, "
+                + "Badlion and Feather are still allowed. Bedrock and Xbox players are never affected."));
         ac.put(row(alerts, "Tell me when someone might be cheating", "Shows up in Recent activity on the Dashboard."));
         ac.put(row(callout, "Call out cheaters in chat", "Everyone sees a red message in chat when the anti-cheat catches someone "
                 + "(once a minute at most). {player} is their name, {cheat} is what they did."));
@@ -156,6 +164,8 @@ final class RulesPage {
         admins.setOn(AntiCheat.xrayAdmins());
         admins.setEnabled(detect.isOn());
         seeds.setOn(Kit.getBool("anticheat.xray.seeds", true));
+        kickHacked.setOn(AntiCheat.kickHacked());
+        vanillaOnly.setOn(AntiCheat.kickModded());
         report.card.setVisible(AntiCheat.applies());
         report.refresh();
         calloutText.setText(AntiCheat.calloutMessage());

@@ -58,6 +58,7 @@ final class Server {
     void resetForSwitch() {
         synchronized (this) { events.clear(); }
         online.clear();
+        clientBrand.clear();
         lastRejected = null;
         xboxCode = null;
         state = State.STOPPED;
@@ -297,6 +298,7 @@ final class Server {
                 "-jar", Kit.serverJar().toString(), "--nogui"));
 
         online.clear();
+        clientBrand.clear();
         synchronized (recentRaw) { recentRaw.clear(); }
         startedAt = System.currentTimeMillis();
         readyAt = 0;
@@ -330,6 +332,7 @@ final class Server {
         stdin = null;
         proc = null;
         online.clear();
+        clientBrand.clear();
         onStopped.run();
 
         if (stopRequested || (code == 0 && readyAt > 0)) {
@@ -524,6 +527,7 @@ final class Server {
         Matcher l = LEAVE.matcher(msg);
         if (l.find()) {
             online.remove(l.group(1));
+            clientBrand.remove(l.group(1).replaceFirst("^\\.", "").toLowerCase(Locale.ROOT));
             event(Kind.LEAVE, nice(l.group(1)) + " left");
             fireChange();
             return;
@@ -536,6 +540,11 @@ final class Server {
             List<String> names = new ArrayList<>();
             for (String n : online) names.add(nice(n));
             event(Kind.INFO, online.isEmpty() ? "Nobody is online right now." : "Online now: " + String.join(", ", names));
+            return;
+        }
+        Matcher cl = AntiCheat.CLIENT.matcher(msg);
+        if (cl.find()) {
+            onClient(cl.group(1), cl.group(2).trim(), msg.contains("CLIENT player=."));
             return;
         }
         AntiCheat.XrayFlag xf = AntiCheat.xrayFlag(msg, Server::nice);
@@ -592,6 +601,30 @@ final class Server {
     }
 
     /** Bedrock players get a "." in front of their name; show them nicely. */
+    /** Each online Java player's game client (from XrayWatch), by name. */
+    final Map<String, String> clientBrand = new ConcurrentHashMap<>();
+
+    private void onClient(String name, String brand, boolean bedrockName) {
+        if (bedrockName) return;
+        AntiCheat.ClientKind k = AntiCheat.kindOf(brand);
+        if (k == AntiCheat.ClientKind.BEDROCK) return;
+        clientBrand.put(name.toLowerCase(Locale.ROOT), brand);
+        String label = AntiCheat.clientLabel(brand);
+        boolean kick = (k == AntiCheat.ClientKind.HACKED && AntiCheat.kickHacked())
+                || (k == AntiCheat.ClientKind.MODDED && AntiCheat.kickModded());
+        if (k == AntiCheat.ClientKind.HACKED) {
+            event(Kind.ERROR, nice(name) + " joined with a hacked client: " + label + "." + (kick ? " Kicked them." : " (Kicking is off on the Rules page.)"));
+            if (AntiCheat.callout()) send(AntiCheat.calloutFor(nice(name), "a hacked client"));
+        } else if (k == AntiCheat.ClientKind.MODDED) {
+            event(kick ? Kind.WARN : Kind.INFO, nice(name) + " is playing with a modded game: " + label + "." + (kick ? " Kicked them (normal Minecraft only)." : ""));
+        }
+        if (kick) send("kick " + name + " " + AntiCheat.kickReason(k));
+        fireChange();
+    }
+
+    /** The game client a Java player joined with, or null if unknown. */
+    String clientOf(String name) { return name == null ? null : clientBrand.get(name.replaceFirst("^\\.", "").toLowerCase(Locale.ROOT)); }
+
     static String nice(String name) {
         if (name.startsWith(".")) return name.substring(1) + " (Bedrock)";
         return bedrockUuidFor(name) != null ? name + " (Bedrock)" : name;

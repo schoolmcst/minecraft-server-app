@@ -1063,6 +1063,14 @@ final class App {
             parts.add(Ui.tag(p.bedrock() ? "Bedrock / Xbox" : "Java", p.bedrock() ? Ui.BLUE : new Color(0xC9A0FF)));
             if (op) parts.add(Ui.tag("Admin", Ui.AMBER));
             if (isOnline) parts.add(Ui.tag("Online", Ui.GREEN_HI));
+            String brand = isOnline && !p.bedrock() ? server.clientOf(n) : null;
+            if (brand != null) {
+                AntiCheat.ClientKind k = AntiCheat.kindOf(brand);
+                Color c = switch (k) { case HACKED -> Ui.RED_HI; case MODDED -> Ui.AMBER; case PVP -> Ui.BLUE; default -> Ui.MUTED; };
+                JComponent t = Ui.tag(AntiCheat.clientLabel(brand), c);
+                t.setToolTipText("The game client " + display + " joined with (it reported \"" + brand + "\")");
+                parts.add(t);
+            }
             if (!p.listed()) parts.add(Ui.tag("Not on whitelist", Ui.RED_HI));
             parts.add(Ui.glue());
 

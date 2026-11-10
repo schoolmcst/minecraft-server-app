@@ -37,6 +37,9 @@ over 30 min and 3 h. Logs "[XrayWatch] FLAG likely|suspicious player=... score=.
 call-out), writes plugins/XrayWatch/report.json + finds.csv (XrayReport.java shows them on the Rules page), /xw in game.
 Build: plugin/build.sh compiles against plugin/stubs (a minimal Paper API stand-in; every API call was checked identical
 to a build against the real paper-api 26.3 jar). plugin/test/xraywatch/Sim.java simulates honest miners and X-rayers.
+XrayWatch 1.1 also logs "CLIENT player=X brand=Y" on join (Player.getClientBrandName); Server.onClient classifies it
+(AntiCheat.kindOf: NORMAL/PVP/MODDED/HACKED by name list), shows it on the Players page, kicks HACKED
+(anticheat.clients.kick, default on) and MODDED when anticheat.clients.vanillaOnly is on. Bedrock is skipped.
 anticheat.xray.seeds sets feature-seeds.generate-random-seeds-for-all (ores in new chunks stop matching the seed).
 
 ## Ship an update (every installed app downloads it the next time it opens)

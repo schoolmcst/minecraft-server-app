@@ -59,6 +59,11 @@ shows everyone's score (0-100) and recent hidden finds with a **Copy teleport** 
 tunnels. Admins can also type `/xw` or `/xw <player>` in the game. Ores in newly explored areas are shuffled so seed-based
 ore finders point to the wrong places.
 
+**Game clients**: when a Java player joins, their game says what it is (normal Minecraft, Fabric, Lunar Client...). The
+Players page shows it, and known hacked clients (like Meteor or Wurst) are kicked. Turn on **Only allow normal
+Minecraft** on the Rules page to also kick modded games. Careful cheaters can hide their client, so the rest of the
+anti-cheat still watches how everyone plays.
+
 ## Updates
 
 - **The app** checks for a new version when it opens and every few hours, and installs it by itself.
