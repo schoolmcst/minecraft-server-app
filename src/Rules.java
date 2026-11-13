@@ -25,6 +25,7 @@ final class Rules {
     }
 
     static final List<Rule> GAME = List.of(
+            new Rule("pvp", "Players can hurt each other", "Off means no PvP: players can't hurt each other (mobs, falling and lava still can). Achievements keep working.", "true", "false", true),
             new Rule("keep_inventory", "Keep items when you die", "Players keep their inventory and XP after dying.", "true", "false", false),
             new Rule("reduced_debug_info", "Show coordinates", "Java players see their coordinates on the F3 screen.", "false", "true", true),
             new Rule("locator_bar", "Locator bar", "Shows which way your friends are, above the hotbar.", "true", "false", true),
@@ -42,7 +43,7 @@ final class Rules {
             new Rule("show_death_messages", "Death messages in chat", "\"Steve was blown up by Creeper\".", "true", "false", true));
 
     /** Rules the page doesn't show but presets change (so they can be switched back). */
-    static final List<String> EXTRA = List.of("pvp", "natural_health_regeneration");
+    static final List<String> EXTRA = List.of("natural_health_regeneration");
 
     /** What the running server says each rule is, filled in from its replies ("difficulty" too). */
     static final Map<String, String> live = Collections.synchronizedMap(new HashMap<>());
